@@ -66,7 +66,12 @@ start_tailscale() {
         sudo tailscale up 2>/dev/null || echo "Run: sudo tailscale up"
     fi
     
-    read -rp "Press Enter when Tailscale is connected..."
+    if [[ -t 0 ]]; then
+        read -rp "Press Enter when Tailscale is connected..."
+    else
+        echo "Waiting 5s for Tailscale..."
+        sleep 5
+    fi
     
     if tailscale status &>/dev/null; then
         print_success "Tailscale connected"
@@ -157,8 +162,10 @@ main() {
     echo ""
     
     local confirm os
-    read -rp "Continue? [Y/n]: " confirm
-    [[ "$confirm" =~ ^[Nn] ]] && exit 0
+    if [[ -t 0 ]]; then
+        read -rp "Continue? [Y/n]: " confirm
+        [[ "$confirm" =~ ^[Nn] ]] && exit 0
+    fi
     
     os=$(detect_os)
     [[ "$os" == "unknown" ]] && { print_error "Unsupported OS"; exit 1; }
