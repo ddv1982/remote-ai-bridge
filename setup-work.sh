@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 # Remote AI Bridge - Work Laptop Setup (macOS/Linux/WSL)
 
@@ -9,6 +9,11 @@ print_step() { echo -e "\n→ $1"; }
 print_success() { echo "✓ $1"; }
 print_warning() { echo "⚠ $1"; }
 print_error() { echo "✗ $1" >&2; }
+
+cleanup() {
+    jobs -p | xargs -r kill 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
 
 detect_os() {
     case "$OSTYPE" in

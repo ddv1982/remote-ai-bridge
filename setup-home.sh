@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 # Remote AI Bridge - Home Machine Setup (macOS/Linux)
 
@@ -8,10 +8,16 @@ print_success() { echo "✓ $1"; }
 print_warning() { echo "⚠ $1"; }
 print_error() { echo "✗ $1" >&2; }
 
+cleanup() {
+    jobs -p | xargs -r kill 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
 detect_os() {
     case "$OSTYPE" in
         darwin*) echo "macos" ;;
         linux*) echo "linux" ;;
+        msys*|cygwin*) echo "windows" ;;
         *) echo "unknown" ;;
     esac
 }
