@@ -19,6 +19,23 @@ detect_os() {
     esac
 }
 
+# Timeout wrapper (macOS doesn't have timeout by default)
+run_with_timeout() {
+    local secs=$1
+    shift
+    ( "$@" ) & local pid=$!
+    ( sleep "$secs" && kill -9 $pid 2>/dev/null ) & local killer=$!
+    wait $pid 2>/dev/null
+    local ret=$?
+    kill $killer 2>/dev/null
+    wait $killer 2>/dev/null
+    return $ret
+}
+
+get_tailscale_state() {
+    run_with_timeout 3 tailscale status --json 2>/dev/null | grep -o '"BackendState":"[^"]*"' | cut -d'"' -f4 || echo ""
+}
+
 detect_shell_rc() {
     if [[ -n "$ZSH_VERSION" ]] || [[ "$SHELL" == *"zsh"* ]]; then
         echo "$HOME/.zshrc"
@@ -44,8 +61,7 @@ install_tailscale() {
             if command -v brew &>/dev/null; then
                 brew install --cask tailscale
             else
-                echo "Install from: https://tailscale.com/download/mac"
-                read -rp "Press Enter when installed..."
+                print_warning "Install Tailscale from: https://tailscale.com/download/mac"
             fi
             ;;
         *)
@@ -56,23 +72,33 @@ install_tailscale() {
 }
 
 start_tailscale() {
-    print_step "Starting Tailscale"
-    local os
+    print_step "Checking Tailscale"
+    local os state
     os=$(detect_os)
     
-    if [[ "$os" == "macos" ]]; then
-        [[ -d "/Applications/Tailscale.app" ]] && open -a Tailscale
-        echo "Open Tailscale from menu bar and log in (same account as home!)."
-    else
-        sudo tailscale up 2>/dev/null || echo "Run: sudo tailscale up"
+    state=$(get_tailscale_state)
+    
+    if [[ "$state" == "Running" ]]; then
+        print_success "Tailscale connected"
+        return 0
     fi
     
-    read -rp "Press Enter when Tailscale is connected..."
+    # Open app on macOS
+    if [[ "$os" == "macos" ]] && [[ -d "/Applications/Tailscale.app" ]]; then
+        open -a Tailscale
+        sleep 2
+    elif [[ "$os" != "macos" ]]; then
+        sudo tailscale up 2>/dev/null || true
+    fi
     
-    if tailscale status &>/dev/null; then
+    state=$(get_tailscale_state)
+    
+    if [[ "$state" == "Running" ]]; then
         print_success "Tailscale connected"
+    elif [[ "$state" == "NeedsLogin" ]]; then
+        print_warning "Tailscale needs login - complete via menu bar after setup"
     else
-        print_warning "Tailscale may not be connected"
+        print_warning "Tailscale not ready - open app and log in after setup"
     fi
 }
 
@@ -203,8 +229,10 @@ main() {
     echo ""
     
     local confirm
-    read -rp "Continue? [Y/n]: " confirm
-    [[ "$confirm" =~ ^[Nn] ]] && exit 0
+    if [[ -t 0 ]]; then
+        read -rp "Continue? [Y/n]: " confirm
+        [[ "$confirm" =~ ^[Nn] ]] && exit 0
+    fi
     
     install_tailscale
     start_tailscale
