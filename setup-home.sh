@@ -201,10 +201,8 @@ main() {
     echo ""
     
     local confirm os
-    if [[ -t 0 ]]; then
-        read -rp "Continue? [Y/n]: " confirm
-        [[ "$confirm" =~ ^[Nn] ]] && exit 0
-    fi
+    read -rp "Continue? [Y/n]: " confirm < /dev/tty
+    [[ "$confirm" =~ ^[Nn] ]] && exit 0
     
     os=$(detect_os)
     [[ "$os" == "unknown" ]] && { print_error "Unsupported OS"; exit 1; }

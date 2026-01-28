@@ -93,20 +93,24 @@ Both machines should show as connected. If not:
    cat ~/.ssh/config | grep -A5 "Host home"
    ```
 
-3. If missing, add manually (on work laptop):
+3. If missing, add manually. Edit your SSH config:
    ```bash
-   cat >> ~/.ssh/config << 'EOF'
-
-   # Remote AI Bridge
+   nano ~/.ssh/config
+   ```
+   
+   Add this block at the end (replace with your values):
+   ```
    Host home
-       HostName <TAILSCALE-IP>
-       User <USERNAME>
+       HostName 100.x.x.x
+       User yourusername
        IdentityFile ~/.ssh/id_ed25519
        ServerAliveInterval 60
        ServerAliveCountMax 3
-   EOF
    ```
-   Replace `<TAILSCALE-IP>` with output of `tailscale ip` on home machine.
+   
+   Save and exit (Ctrl+O, Enter, Ctrl+X in nano).
+   
+   Get your Tailscale IP by running `tailscale ip` on your home machine.
 
 ### SSH asks for password
 
@@ -128,6 +132,16 @@ ssh -v <username>@<tailscale-ip>
 ```
 
 The `-v` flag shows where the connection fails.
+
+## Uninstall
+
+To remove Remote AI Bridge config from your work laptop:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ddv1982/remote-ai-bridge/main/uninstall.sh | bash
+```
+
+This removes SSH config and shell functions. Tailscale, tmux, and Claude Code are kept.
 
 ## License
 

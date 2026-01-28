@@ -126,10 +126,10 @@ setup_ssh_key() {
 get_home_info() {
     print_step "Home Machine Info"
     echo ""
-    read -rp "Tailscale hostname or IP of home machine: " HOME_HOST
+    read -rp "Tailscale hostname or IP of home machine: " HOME_HOST < /dev/tty
     [[ -z "$HOME_HOST" ]] && { print_error "Required"; exit 1; }
     
-    read -rp "Username on home machine [$USER]: " HOME_USER
+    read -rp "Username on home machine [$USER]: " HOME_USER < /dev/tty
     HOME_USER="${HOME_USER:-$USER}"
 }
 
@@ -144,7 +144,7 @@ copy_ssh_key() {
         echo ""
         cat "$HOME/.ssh/id_ed25519.pub"
         echo ""
-        read -rp "Press Enter when done..."
+        read -rp "Press Enter when done..." < /dev/tty
     fi
 }
 
@@ -235,10 +235,8 @@ main() {
     echo ""
     
     local confirm
-    if [[ -t 0 ]]; then
-        read -rp "Continue? [Y/n]: " confirm
-        [[ "$confirm" =~ ^[Nn] ]] && exit 0
-    fi
+    read -rp "Continue? [Y/n]: " confirm < /dev/tty
+    [[ "$confirm" =~ ^[Nn] ]] && exit 0
     
     install_tailscale
     start_tailscale
