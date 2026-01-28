@@ -16,7 +16,7 @@ Use AI CLIs (Claude Code, Aider, etc.) from your work laptop via SSH to your hom
 curl -fsSL https://raw.githubusercontent.com/ddv1982/remote-ai-bridge/main/setup-home.sh | bash
 ```
 
-Installs: Tailscale, tmux, Claude Code, enables SSH. Copy the Tailscale hostname shown.
+Installs: Tailscale, tmux, Claude Code, enables SSH. If Tailscale needs login, complete it via menu bar, then run `tailscale ip` to get your hostname.
 
 ### 2. Work Laptop (macOS/Linux/WSL)
 
