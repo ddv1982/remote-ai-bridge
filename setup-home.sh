@@ -16,6 +16,19 @@ detect_os() {
     esac
 }
 
+# Timeout wrapper (macOS doesn't have timeout by default)
+run_with_timeout() {
+    local secs=$1
+    shift
+    ( "$@" ) & local pid=$!
+    ( sleep "$secs" && kill -9 $pid 2>/dev/null ) & local killer=$!
+    wait $pid 2>/dev/null
+    local ret=$?
+    kill $killer 2>/dev/null
+    wait $killer 2>/dev/null
+    return $ret
+}
+
 install_homebrew() {
     if command -v brew &>/dev/null; then
         print_success "Homebrew installed"
@@ -54,13 +67,18 @@ install_tailscale() {
     print_success "Tailscale installed"
 }
 
+get_tailscale_state() {
+    # Get state with 3s timeout to avoid hanging
+    run_with_timeout 3 tailscale status --json 2>/dev/null | grep -o '"BackendState":"[^"]*"' | cut -d'"' -f4 || echo ""
+}
+
 start_tailscale() {
     print_step "Checking Tailscale"
     local os state
     os=$(detect_os)
     
     # Check current state via BackendState
-    state=$(tailscale status --json 2>/dev/null | grep -o '"BackendState":"[^"]*"' | cut -d'"' -f4)
+    state=$(get_tailscale_state)
     
     if [[ "$state" == "Running" ]]; then
         print_success "Tailscale connected"
@@ -70,19 +88,20 @@ start_tailscale() {
     # Open app on macOS if not running
     if [[ "$os" == "macos" ]] && [[ -d "/Applications/Tailscale.app" ]]; then
         open -a Tailscale
+        sleep 2
     elif [[ "$os" == "linux" ]]; then
         sudo tailscale up 2>/dev/null || true
     fi
     
     # Re-check state
-    state=$(tailscale status --json 2>/dev/null | grep -o '"BackendState":"[^"]*"' | cut -d'"' -f4)
+    state=$(get_tailscale_state)
     
     if [[ "$state" == "Running" ]]; then
         print_success "Tailscale connected"
     elif [[ "$state" == "NeedsLogin" ]]; then
         print_warning "Tailscale needs login - complete via menu bar after setup"
     else
-        print_warning "Tailscale not connected - log in via menu bar after setup"
+        print_warning "Tailscale not ready - open app and log in after setup"
     fi
 }
 
@@ -143,7 +162,7 @@ enable_ssh() {
 
 show_completion() {
     local hostname ip state
-    state=$(tailscale status --json 2>/dev/null | grep -o '"BackendState":"[^"]*"' | cut -d'"' -f4)
+    state=$(get_tailscale_state)
     
     echo ""
     echo "════════════════════════════════════════════════════════════"
@@ -152,8 +171,8 @@ show_completion() {
     echo ""
     
     if [[ "$state" == "Running" ]]; then
-        hostname=$(tailscale status --json 2>/dev/null | grep -o '"DNSName":"[^"]*"' | head -1 | cut -d'"' -f4 | sed 's/\.$//')
-        ip=$(tailscale ip -4 2>/dev/null)
+        hostname=$(run_with_timeout 3 tailscale status --json 2>/dev/null | grep -o '"DNSName":"[^"]*"' | head -1 | cut -d'"' -f4 | sed 's/\.$//')
+        ip=$(run_with_timeout 3 tailscale ip -4 2>/dev/null || echo "")
         [[ -n "$hostname" ]] && echo "  Tailscale hostname: $hostname"
         [[ -n "$ip" ]] && echo "  Tailscale IP: $ip"
     else
