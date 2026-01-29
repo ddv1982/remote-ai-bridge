@@ -194,9 +194,6 @@ setup_shell_functions() {
 # SSH-LLM
 ai() { ssh -t home "tmux new-session -A -s ${1:-ai}"; }
 ai-run() { [[ $# -eq 0 ]] && { echo "Usage: ai-run <cmd>"; return 1; }; ssh -t home "$*"; }
-ai-pipe() { [[ $# -eq 0 ]] && { echo "Usage: ai-pipe <cmd>"; return 1; }; ssh home "cat | $*"; }
-ai-review() { ssh home "cat | claude -p 'Review this code:'"; }
-ai-explain() { ssh home "cat | claude -p 'Explain this code:'"; }
 EOF
     print_success "Commands added to $rc"
 }
@@ -241,7 +238,7 @@ show_completion() {
         echo "  source $rc && ai"
     fi
     echo ""
-    echo "  Commands: ai, ai-run, ai-pipe, ai-review, ai-explain"
+    echo "  Commands: ai, ai-run"
     echo ""
 }
 

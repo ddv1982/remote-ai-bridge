@@ -57,17 +57,12 @@ ai    # Connect to persistent tmux session on home machine
 |---------|-------------|
 | `ai [session]` | Connect to tmux session |
 | `ai-run <cmd>` | Run command on home |
-| `ai-pipe <cmd>` | Pipe stdin to home |
-| `ai-review` | Pipe code for review |
-| `ai-explain` | Pipe code for explanation |
 
 ## Examples
 
 ```bash
 ai                        # Interactive session
 ai-run claude --version   # Single command
-git diff | ai-review      # Review changes
-cat file.py | ai-explain  # Explain code
 ```
 
 ## Why tmux?
