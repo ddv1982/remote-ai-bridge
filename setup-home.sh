@@ -252,7 +252,7 @@ main() {
     echo ""
     
     local confirm os
-    read -rp "Continue? [Y/n]: " confirm < /dev/tty
+    read -rp "Continue? [Y/n]: " confirm
     [[ "$confirm" =~ ^[Nn] ]] && exit 0
     
     os=$(detect_os)

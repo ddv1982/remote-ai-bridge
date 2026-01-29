@@ -94,7 +94,7 @@ remove_ssh_key() {
     echo "SSH key exists at: $key"
     echo "This key may be used for other purposes."
     
-    read -rp "Delete SSH key? [y/N]: " confirm < /dev/tty
+    read -rp "Delete SSH key? [y/N]: " confirm
     if [[ "$confirm" =~ ^[Yy] ]]; then
         rm -f "$key" "$key.pub"
         print_success "SSH key deleted"
@@ -137,7 +137,7 @@ main() {
     echo "This will NOT uninstall Tailscale (if installed)"
     echo ""
     
-    read -rp "Continue with uninstall? [y/N]: " confirm < /dev/tty
+    read -rp "Continue with uninstall? [y/N]: " confirm
     [[ ! "$confirm" =~ ^[Yy] ]] && { echo "Cancelled."; exit 0; }
     
     remove_ssh_config
@@ -151,7 +151,7 @@ main() {
     echo ""
     echo "  Restart your shell or run: source $(detect_shell_rc)"
     echo ""
-    echo "  To reinstall: curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/setup-client.sh | bash"
+    echo "  To reinstall: bash <(curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/setup-client.sh)"
     echo ""
 }
 

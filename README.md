@@ -15,7 +15,7 @@ Use AI CLIs (Claude Code, Aider, etc.) from any device via SSH to your home mach
 ### 1. Home Machine (macOS/Linux)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/setup-home.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/setup-home.sh)
 ```
 
 Installs: Tailscale, tmux, Claude Code, enables SSH.
@@ -32,7 +32,7 @@ System Settings → General → Sharing → Remote Login (ON)
 **Windows users:** Requires WSL. Install with `wsl --install` in PowerShell (admin), then reboot.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/setup-client.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/setup-client.sh)
 ```
 
 The script will:
@@ -146,7 +146,7 @@ If your home Mac sleeps, SSH connections will fail. Use an app like [Caffeinated
 To remove ai-home config from your client machine:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/uninstall.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/uninstall.sh)
 ```
 
 This removes SSH config and shell functions.

@@ -126,10 +126,10 @@ setup_ssh_key() {
 get_home_info() {
     print_step "Home Machine Info"
     echo ""
-    read -rp "Tailscale hostname or IP of home machine: " HOME_HOST < /dev/tty
+    read -rp "Tailscale hostname or IP of home machine: " HOME_HOST
     [[ -z "$HOME_HOST" ]] && { print_error "Required"; exit 1; }
     
-    read -rp "Username on home machine [$USER]: " HOME_USER < /dev/tty
+    read -rp "Username on home machine [$USER]: " HOME_USER
     HOME_USER="${HOME_USER:-$USER}"
 }
 
@@ -147,7 +147,7 @@ setup_ssh_config() {
         echo "  hostname: $(ssh -G home 2>/dev/null | grep '^hostname ' | cut -d' ' -f2)"
         echo "  user: $(ssh -G home 2>/dev/null | grep '^user ' | cut -d' ' -f2)"
         echo ""
-        read -rp "Update with new values? [y/N]: " confirm < /dev/tty
+        read -rp "Update with new values? [y/N]: " confirm
         if [[ ! "$confirm" =~ ^[Yy] ]]; then
             print_warning "Keeping existing SSH config"
             return 0
@@ -251,7 +251,7 @@ main() {
     echo ""
     
     local confirm
-    read -rp "Continue? [Y/n]: " confirm < /dev/tty
+    read -rp "Continue? [Y/n]: " confirm
     [[ "$confirm" =~ ^[Nn] ]] && exit 0
     
     install_tailscale
