@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Remote AI Bridge - Home Machine Setup (macOS/Linux)
+# ai-home: Home Setup (macOS/Linux)
 
 print_step() { echo -e "\n→ $1"; }
 print_success() { echo "✓ $1"; }
@@ -239,14 +239,14 @@ show_completion() {
     
     echo "  Username: $USER"
     echo ""
-    echo "  Next: Run setup-work.sh on your work laptop"
+    echo "  Next: Run setup-client.sh on your client machine"
     echo ""
 }
 
 main() {
     echo ""
-    echo "Remote AI Bridge: Home Setup"
-    echo "════════════════════════════"
+    echo "ai-home: Home Setup"
+    echo "═══════════════════"
     echo ""
     echo "This will install: Tailscale, tmux, Claude Code, SSH"
     echo ""

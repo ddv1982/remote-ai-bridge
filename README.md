@@ -27,10 +27,12 @@ System Settings → General → Sharing → Remote Login (ON)
 - Log into Tailscale (macOS: menu bar icon, Linux: URL shown in terminal)
 - Get your Tailscale IP: `tailscale ip` (e.g., `100.x.x.x`)
 
-### 2. Work Laptop (macOS/Linux/WSL)
+### 2. Client Machine (macOS/Linux/WSL)
+
+**Windows users:** Requires WSL. Install with `wsl --install` in PowerShell (admin), then reboot.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/setup-work.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/setup-client.sh | bash
 ```
 
 The script will:
@@ -112,11 +114,11 @@ Ensure Remote Login is enabled on your Mac:
    ssh -G home | grep -E "^(hostname|user)"
    ```
 
-3. If missing or wrong, re-run `setup-work.sh` to reconfigure.
+3. If missing or wrong, re-run `setup-client.sh` to reconfigure.
 
 ### SSH asks for password
 
-The SSH key wasn't copied. Run on work laptop:
+The SSH key wasn't copied. Run on client machine:
 ```bash
 ssh-copy-id <username>@<tailscale-ip>
 ```
@@ -135,9 +137,13 @@ ssh -v <username>@<tailscale-ip>
 
 The `-v` flag shows where the connection fails.
 
+### Home machine goes to sleep
+
+If your home Mac sleeps, SSH connections will fail. Use an app like [Caffeinated](https://apps.apple.com/app/caffeinated/id1362171212) or [Amphetamine](https://apps.apple.com/app/amphetamine/id937984704) to keep it awake, or adjust Energy Saver settings in System Settings.
+
 ## Uninstall
 
-To remove ai-home config from your work laptop:
+To remove ai-home config from your client machine:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/uninstall.sh | bash
@@ -145,9 +151,9 @@ curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/uninstall.sh |
 
 This removes SSH config and shell functions.
 
-## Disclaimer
+## Author
 
-This tool provides secure remote access to your personal computer. Use responsibly and in accordance with your employer's policies and any applicable regulations.
+[Douwe de Vries](https://github.com/ddv1982)
 
 ## License
 

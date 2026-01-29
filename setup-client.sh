@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Remote AI Bridge - Work Laptop Setup (macOS/Linux/WSL)
+# ai-home: Client Setup (macOS/Linux/WSL)
 
 SSH_CONFIG="$HOME/.ssh/config"
 
@@ -118,7 +118,7 @@ setup_ssh_key() {
     if [[ -f "$key" ]]; then
         print_success "SSH key exists: $key"
     else
-        ssh-keygen -t ed25519 -f "$key" -N "" -C "$USER@work"
+        ssh-keygen -t ed25519 -f "$key" -N "" -C "$USER@client"
         print_success "SSH key generated"
     fi
 }
@@ -157,7 +157,7 @@ setup_ssh_config() {
         backup="$SSH_CONFIG.bak.$(date +%Y%m%d%H%M%S)"
         cp "$SSH_CONFIG" "$backup"
         awk '
-            /^# (SSH-LLM|Remote AI Bridge)$/ { skip=1; next }
+            /^# (ai-home|SSH-LLM|Remote AI Bridge)$/ { skip=1; next }
             /^Host home$/ { skip=1; next }
             skip && /^Host / { skip=0 }
             skip && /^[^ \t]/ && !/^$/ { skip=0 }
@@ -167,7 +167,7 @@ setup_ssh_config() {
     
     cat >> "$SSH_CONFIG" << EOF
 
-# SSH-LLM
+# ai-home
 Host home
     HostName $HOME_HOST
     User $HOME_USER
@@ -184,14 +184,14 @@ setup_shell_functions() {
     local rc
     rc=$(detect_shell_rc)
     
-    if grep -q "# SSH-LLM" "$rc" 2>/dev/null; then
+    if grep -qE "# (ai-home|SSH-LLM)" "$rc" 2>/dev/null; then
         print_warning "Commands exist in $rc, skipping"
         return 0
     fi
     
     cat >> "$rc" << 'EOF'
 
-# SSH-LLM
+# ai-home
 ai() { ssh -t home "tmux new-session -A -s ${1:-ai}"; }
 ai-run() { [[ $# -eq 0 ]] && { echo "Usage: ai-run <cmd>"; return 1; }; ssh -t home "$*"; }
 EOF
@@ -244,8 +244,8 @@ show_completion() {
 
 main() {
     echo ""
-    echo "Remote AI Bridge: Work Setup"
-    echo "════════════════════════════"
+    echo "ai-home: Client Setup"
+    echo "═════════════════════"
     echo ""
     echo "This will: Install Tailscale, configure SSH, add commands"
     echo ""

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Remote AI Bridge - Uninstall Script
+# ai-home: Uninstall Script
 
 print_step() { echo -e "\n→ $1"; }
 print_success() { echo "✓ $1"; }
@@ -27,7 +27,7 @@ has_ssh_config() {
 has_shell_functions() {
     local rc
     rc=$(detect_shell_rc)
-    grep -q "# SSH-LLM" "$rc" 2>/dev/null
+    grep -qE "# (ai-home|SSH-LLM)" "$rc" 2>/dev/null
 }
 
 remove_ssh_config() {
@@ -43,9 +43,9 @@ remove_ssh_config() {
     backup="$SSH_CONFIG.bak.$(date +%Y%m%d%H%M%S)"
     cp "$SSH_CONFIG" "$backup"
     
-    # Remove the Host home block (from "# SSH-LLM" or "# Remote AI Bridge" comment through the Host block)
+    # Remove the Host home block (from "# ai-home", "# SSH-LLM" or "# Remote AI Bridge" comment through the Host block)
     awk '
-        /^# (SSH-LLM|Remote AI Bridge)$/ { skip=1; next }
+        /^# (ai-home|SSH-LLM|Remote AI Bridge)$/ { skip=1; next }
         /^Host home$/ { skip=1; next }
         skip && /^Host / { skip=0 }
         skip && /^[^ \t]/ && !/^$/ { skip=0 }
@@ -70,9 +70,9 @@ remove_shell_functions() {
     backup="$rc.bak.$(date +%Y%m%d%H%M%S)"
     cp "$rc" "$backup"
     
-    # Remove the SSH-LLM block (comment + all ai* function lines until next non-ai line or blank)
+    # Remove the ai-home block (comment + all ai* function lines until next non-ai line or blank)
     awk '
-        /^# SSH-LLM$/ { skip=1; next }
+        /^# (ai-home|SSH-LLM)$/ { skip=1; next }
         skip && /^ai[-a-z]*\(?\)? *\{/ { next }
         skip && /^$/ { skip=0; next }
         skip && !/^ai/ { skip=0 }
@@ -105,8 +105,8 @@ remove_ssh_key() {
 
 main() {
     echo ""
-    echo "Remote AI Bridge: Uninstall"
-    echo "═══════════════════════════"
+    echo "ai-home: Uninstall"
+    echo "══════════════════"
     echo ""
     
     local found_something=false
@@ -129,7 +129,7 @@ main() {
     fi
     
     if [[ "$found_something" == false ]]; then
-        echo "Nothing to uninstall. Remote AI Bridge config not found."
+        echo "Nothing to uninstall. ai-home config not found."
         exit 0
     fi
     
@@ -151,7 +151,7 @@ main() {
     echo ""
     echo "  Restart your shell or run: source $(detect_shell_rc)"
     echo ""
-    echo "  To reinstall: curl -fsSL https://raw.githubusercontent.com/ddv1982/remote-ai-bridge/main/setup-work.sh | bash"
+    echo "  To reinstall: curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/setup-client.sh | bash"
     echo ""
 }
 
