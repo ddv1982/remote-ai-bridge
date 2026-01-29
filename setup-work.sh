@@ -142,8 +142,26 @@ setup_ssh_config() {
     print_step "Configuring SSH"
     
     if grep -q "^Host home$" "$SSH_CONFIG" 2>/dev/null; then
-        print_warning "SSH config 'home' exists, skipping"
-        return 0
+        echo ""
+        echo "Existing 'Host home' config found:"
+        awk '/^Host home$/,/^Host / { if (/^Host / && !/^Host home$/) exit; print "  " $0 }' "$SSH_CONFIG"
+        echo ""
+        read -rp "Update with new values? [y/N]: " confirm < /dev/tty
+        if [[ ! "$confirm" =~ ^[Yy] ]]; then
+            print_warning "Keeping existing SSH config"
+            return 0
+        fi
+        # Remove old Host home block before adding new one
+        local backup
+        backup="$SSH_CONFIG.bak.$(date +%Y%m%d%H%M%S)"
+        cp "$SSH_CONFIG" "$backup"
+        awk '
+            /^# (SSH-LLM|Remote AI Bridge)$/ { skip=1; next }
+            /^Host home$/ { skip=1; next }
+            skip && /^Host / { skip=0 }
+            skip && /^[^ \t]/ && !/^$/ { skip=0 }
+            !skip { print }
+        ' "$backup" > "$SSH_CONFIG"
     fi
     
     cat >> "$SSH_CONFIG" << EOF
