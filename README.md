@@ -105,27 +105,10 @@ Ensure Remote Login is enabled on your Mac:
 
 2. Check SSH config exists:
    ```bash
-   cat ~/.ssh/config | grep -A5 "Host home"
+   ssh -G home | grep -E "^(hostname|user)"
    ```
 
-3. If missing, add manually. Edit your SSH config:
-   ```bash
-   nano ~/.ssh/config
-   ```
-   
-   Add this block at the end (replace with your values):
-   ```
-   Host home
-       HostName 100.x.x.x
-       User yourusername
-       IdentityFile ~/.ssh/id_ed25519
-       ServerAliveInterval 60
-       ServerAliveCountMax 3
-   ```
-   
-   Save and exit (Ctrl+O, Enter, Ctrl+X in nano).
-   
-   Get your Tailscale IP by running `tailscale ip` on your home machine.
+3. If missing or wrong, re-run `setup-work.sh` to reconfigure.
 
 ### SSH asks for password
 
