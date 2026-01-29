@@ -32,11 +32,16 @@ The script will:
 - Install Tailscale (log in with same account as home)
 - Generate SSH key
 - Ask for your home machine's **Tailscale IP or hostname**
-- Copy SSH key to home machine
 - Configure SSH and shell commands
 
-### 3. Use It
+### 3. Copy SSH Key & Connect
 
+After the script completes, copy your SSH key:
+```bash
+ssh-copy-id <username>@<tailscale-ip>
+```
+
+Then connect:
 ```bash
 source ~/.zshrc  # or ~/.bashrc
 ai               # Connect to home machine
