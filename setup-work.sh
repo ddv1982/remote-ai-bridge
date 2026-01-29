@@ -42,7 +42,7 @@ get_tailscale_state() {
 }
 
 detect_shell_rc() {
-    if [[ -n "$ZSH_VERSION" ]] || [[ "$SHELL" == *"zsh"* ]]; then
+    if [[ -n "${ZSH_VERSION:-}" ]] || [[ "$SHELL" == *"zsh"* ]]; then
         echo "$HOME/.zshrc"
     elif [[ -f "$HOME/.bashrc" ]]; then
         echo "$HOME/.bashrc"
