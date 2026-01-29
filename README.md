@@ -146,7 +146,7 @@ To remove Remote AI Bridge config from your work laptop:
 curl -fsSL https://raw.githubusercontent.com/ddv1982/remote-ai-bridge/main/uninstall.sh | bash
 ```
 
-This removes SSH config and shell functions. Tailscale, tmux, and Claude Code are kept.
+This removes SSH config and shell functions.
 
 ## License
 

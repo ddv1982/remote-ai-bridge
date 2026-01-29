@@ -134,7 +134,7 @@ main() {
     fi
     
     echo ""
-    echo "This will NOT uninstall: Tailscale, tmux, Claude Code"
+    echo "This will NOT uninstall Tailscale (if installed)"
     echo ""
     
     read -rp "Continue with uninstall? [y/N]: " confirm < /dev/tty
