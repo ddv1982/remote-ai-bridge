@@ -4,9 +4,9 @@ Use AI CLIs (Claude Code, Aider, etc.) from your work laptop via SSH to your hom
 
 ## Why?
 
-- **Bypass firewalls** - AI services blocked at work
-- **No API keys on work laptop** - Credentials stay home
-- **Secure** - Tailscale's WireGuard mesh, no exposed ports
+- **Access AI tools remotely** - Use Claude Code from anywhere via your home machine
+- **Keep credentials at home** - API keys never leave your personal computer
+- **Secure connection** - Tailscale's WireGuard mesh, no exposed ports
 
 ## Quick Start
 
@@ -147,6 +147,10 @@ curl -fsSL https://raw.githubusercontent.com/ddv1982/remote-ai-bridge/main/unins
 ```
 
 This removes SSH config and shell functions.
+
+## Disclaimer
+
+This tool provides secure remote access to your personal computer. Use responsibly and in accordance with your employer's policies and any applicable regulations.
 
 ## License
 
