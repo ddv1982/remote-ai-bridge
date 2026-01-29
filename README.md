@@ -96,7 +96,7 @@ Both machines should show as connected. If not:
 - macOS: Click Tailscale icon in menu bar and log in
 - Linux: Run `sudo tailscale up` and open the URL shown
 
-### SSH connection refused (macOS home machine)
+### SSH connection refused
 
 Ensure Remote Login is enabled on your Mac:
 1. System Settings → General → Sharing
