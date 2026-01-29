@@ -18,6 +18,9 @@ curl -fsSL https://raw.githubusercontent.com/ddv1982/remote-ai-bridge/main/setup
 
 Installs: Tailscale, tmux, Claude Code, enables SSH.
 
+**macOS Users:** Enable Remote Login manually:
+System Settings → General → Sharing → Remote Login (ON)
+
 **After setup:**
 - Log into Tailscale (macOS: menu bar icon, Linux: URL shown in terminal)
 - Get your Tailscale IP: `tailscale ip` (e.g., `100.x.x.x`)
@@ -41,10 +44,10 @@ After the script completes, copy your SSH key:
 ssh-copy-id <username>@<tailscale-ip>
 ```
 
-Then connect:
+Then reload your shell and connect:
 ```bash
-source ~/.zshrc  # or ~/.bashrc
-ai               # Connect to home machine
+source ~/.bashrc  # or ~/.zshrc on macOS
+ai                # Connect to home machine
 ```
 
 ## Commands
@@ -85,6 +88,13 @@ tailscale status
 Both machines should show as connected. If not:
 - macOS: Click Tailscale icon in menu bar and log in
 - Linux: Run `sudo tailscale up` and open the URL shown
+
+### SSH connection refused (macOS home machine)
+
+Ensure Remote Login is enabled on your Mac:
+1. System Settings → General → Sharing
+2. Turn ON "Remote Login"
+3. Ensure your user is in the allowed list (or set to "All users")
 
 ### SSH hangs or times out
 
