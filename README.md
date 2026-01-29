@@ -1,4 +1,4 @@
-# Remote AI Bridge
+# ai-home
 
 > Access AI CLI tools on your home machine from anywhere via SSH over Tailscale.
 
@@ -15,7 +15,7 @@ Use AI CLIs (Claude Code, Aider, etc.) from any device via SSH to your home mach
 ### 1. Home Machine (macOS/Linux)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ddv1982/remote-ai-bridge/main/setup-home.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/setup-home.sh | bash
 ```
 
 Installs: Tailscale, tmux, Claude Code, enables SSH.
@@ -30,7 +30,7 @@ System Settings → General → Sharing → Remote Login (ON)
 ### 2. Work Laptop (macOS/Linux/WSL)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ddv1982/remote-ai-bridge/main/setup-work.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/setup-work.sh | bash
 ```
 
 The script will:
@@ -137,10 +137,10 @@ The `-v` flag shows where the connection fails.
 
 ## Uninstall
 
-To remove Remote AI Bridge config from your work laptop:
+To remove ai-home config from your work laptop:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ddv1982/remote-ai-bridge/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ddv1982/ai-home/main/uninstall.sh | bash
 ```
 
 This removes SSH config and shell functions.
