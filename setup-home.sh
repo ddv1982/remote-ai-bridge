@@ -55,6 +55,57 @@ install_homebrew() {
     print_success "Homebrew installed"
 }
 
+setup_path_for_ssh() {
+    print_step "Configuring PATH for SSH sessions"
+    
+    # Determine brew path
+    local brew_path=""
+    if [[ -d /opt/homebrew/bin ]]; then
+        brew_path="/opt/homebrew/bin"
+    elif [[ -d /home/linuxbrew/.linuxbrew/bin ]]; then
+        brew_path="/home/linuxbrew/.linuxbrew/bin"
+    elif [[ -d /usr/local/bin ]] && command -v brew &>/dev/null; then
+        brew_path="/usr/local/bin"
+    fi
+    
+    [[ -z "$brew_path" ]] && { print_success "No homebrew path to configure"; return 0; }
+    
+    local path_line="export PATH=\"$brew_path:\$PATH\""
+    
+    # For zsh: use .zshenv (sourced for ALL zsh sessions including non-interactive SSH)
+    if [[ "$SHELL" == *"zsh"* ]] || [[ -f "$HOME/.zshrc" ]]; then
+        if ! grep -qF "$brew_path" "$HOME/.zshenv" 2>/dev/null; then
+            echo "$path_line" >> "$HOME/.zshenv"
+            print_success "Added PATH to ~/.zshenv (zsh)"
+        else
+            print_success "PATH already in ~/.zshenv"
+        fi
+    fi
+    
+    # For bash: prepend to .bashrc (before any interactive check)
+    # Bash sources .bashrc for SSH commands, but most have early exit for non-interactive
+    if [[ -f "$HOME/.bashrc" ]]; then
+        if ! grep -qF "$brew_path" "$HOME/.bashrc" 2>/dev/null; then
+            local tmp
+            tmp=$(mktemp)
+            echo "$path_line" > "$tmp"
+            cat "$HOME/.bashrc" >> "$tmp"
+            mv "$tmp" "$HOME/.bashrc"
+            print_success "Added PATH to ~/.bashrc (bash)"
+        else
+            print_success "PATH already in ~/.bashrc"
+        fi
+    fi
+    
+    # Also add to .profile for login shells (covers edge cases)
+    if [[ -f "$HOME/.profile" ]]; then
+        if ! grep -qF "$brew_path" "$HOME/.profile" 2>/dev/null; then
+            echo "$path_line" >> "$HOME/.profile"
+            print_success "Added PATH to ~/.profile"
+        fi
+    fi
+}
+
 install_tailscale() {
     if command -v tailscale &>/dev/null; then
         print_success "Tailscale installed"
@@ -208,6 +259,7 @@ main() {
     [[ "$os" == "unknown" ]] && { print_error "Unsupported OS"; exit 1; }
     
     install_homebrew
+    setup_path_for_ssh
     install_tailscale
     start_tailscale
     install_tmux
