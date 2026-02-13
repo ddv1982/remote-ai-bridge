@@ -226,6 +226,15 @@ case "$cmd" in
     fi
     exit 1
     ;;
+  outdated)
+    if [[ "${1:-}" == "--formula" && "${2:-}" == "tailscale" ]]; then
+      if [[ "${BREW_TAILSCALE_OUTDATED:-0}" == "1" ]]; then
+        printf '%s\n' "tailscale"
+      fi
+      exit 0
+    fi
+    exit 0
+    ;;
   install|link|unlink|uninstall|upgrade)
     exit 0
     ;;
@@ -769,15 +778,46 @@ n
 INP
   : > "$brew_calls_file"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
+  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" BREW_TAILSCALE_OUTDATED=1 TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
 n
 INP
 )"
 
   [[ "$out" == *"Core setup is already installed!"* ]] || fail "expected idempotent core setup message on macOS rerun"
-  [[ "$out" == *"Upgrading Homebrew Tailscale formula (if needed)"* ]] || fail "expected upgrade step for existing macOS formula install"
+  [[ "$out" == *"Upgrading Homebrew Tailscale formula"* ]] || fail "expected upgrade step for existing macOS formula install"
   assert_contains "$brew_calls_file" '^upgrade tailscale$'
   pass "macOS formula upgrade attempted on idempotent rerun"
+}
+
+test_macos_formula_up_to_date_skips_upgrade() {
+  local tmp
+  local fake_bin
+  local brew_prefix
+  local brew_calls_file
+  local out
+  tmp="$(mktemp -d)"
+  fake_bin="$tmp/bin"
+  brew_prefix="$tmp/homebrew"
+  brew_calls_file="$tmp/home/brew.calls"
+  mkdir -p "$fake_bin" "$tmp/home"
+  make_fake_macos_bin "$fake_bin" "$brew_prefix"
+
+  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
+y
+n
+INP
+  : > "$brew_calls_file"
+
+  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
+n
+INP
+)"
+
+  [[ "$out" == *"Homebrew Tailscale formula is already up to date"* ]] || fail "expected up-to-date message on macOS rerun"
+  if grep -q '^upgrade tailscale$' "$brew_calls_file" 2>/dev/null; then
+    fail "did not expect brew upgrade when tailscale is already up to date"
+  fi
+  pass "macOS formula up-to-date skips upgrade"
 }
 
 test_macos_tailscale_version_pin_warning() {
@@ -962,6 +1002,7 @@ main() {
   test_malformed_tailmux_block_not_modified
   test_macos_path_selection_mocked
   test_macos_formula_upgrade_attempted
+  test_macos_formula_up_to_date_skips_upgrade
   test_macos_tailscale_version_pin_warning
   test_curl_style_bootstrap
   test_tailmux_rejects_option_target

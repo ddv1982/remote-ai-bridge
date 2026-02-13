@@ -150,13 +150,41 @@ install_tailscale_macos() {
     # Install open-source CLI version (not the GUI cask) for full 'tailscale drive' support
     "$brew_bin" install tailscale
   else
+    local outdated_output=""
+    local upgrade_output=""
+    local upgrade_error_summary=""
+
     print_success "Tailscale already installed (Homebrew formula)"
-    print_step "Upgrading Homebrew Tailscale formula (if needed)"
-    if "$brew_bin" upgrade tailscale >/dev/null 2>&1; then
-      print_success "Homebrew Tailscale formula is up to date"
+    print_step "Checking whether Homebrew Tailscale formula is outdated"
+    if outdated_output="$("$brew_bin" outdated --formula tailscale 2>/dev/null)"; then
+      if printf '%s\n' "$outdated_output" | grep -qx 'tailscale'; then
+        print_step "Upgrading Homebrew Tailscale formula"
+        if upgrade_output="$("$brew_bin" upgrade tailscale 2>&1)"; then
+          print_success "Homebrew Tailscale formula upgraded"
+        else
+          upgrade_error_summary="$(printf '%s\n' "$upgrade_output" | head -n1)"
+          print_warning "Could not upgrade Homebrew Tailscale formula automatically."
+          if [[ -n "$upgrade_error_summary" ]]; then
+            print_warning "brew: $upgrade_error_summary"
+          fi
+          print_warning "Run manually: brew upgrade tailscale"
+        fi
+      else
+        print_success "Homebrew Tailscale formula is already up to date"
+      fi
     else
-      print_warning "Could not upgrade Homebrew Tailscale formula automatically."
-      print_warning "Run manually: brew upgrade tailscale"
+      print_warning "Could not determine whether Homebrew Tailscale is outdated."
+      print_step "Attempting Homebrew upgrade for Tailscale"
+      if upgrade_output="$("$brew_bin" upgrade tailscale 2>&1)"; then
+        print_success "Homebrew Tailscale formula upgraded"
+      else
+        upgrade_error_summary="$(printf '%s\n' "$upgrade_output" | head -n1)"
+        print_warning "Could not upgrade Homebrew Tailscale formula automatically."
+        if [[ -n "$upgrade_error_summary" ]]; then
+          print_warning "brew: $upgrade_error_summary"
+        fi
+        print_warning "Run manually: brew upgrade tailscale"
+      fi
     fi
   fi
 
