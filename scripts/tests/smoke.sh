@@ -179,7 +179,20 @@ BIN
 exit 0
 BIN
 
-  chmod +x "$bin_dir/tailscale" "$bin_dir/tmux" "$bin_dir/sudo" "$bin_dir/ssh" "$bin_dir/systemctl" "$bin_dir/apt-get"
+  cat > "$bin_dir/curl" <<'BIN'
+#!/usr/bin/env bash
+if [[ -n "${CURL_CALLS_FILE:-}" ]]; then
+  printf '%s\n' "$*" >> "$CURL_CALLS_FILE"
+fi
+if [[ "$*" == *"https://tailscale.com/install.sh"* ]]; then
+  printf '%s\n' '#!/usr/bin/env bash'
+  printf '%s\n' 'exit 0'
+  exit 0
+fi
+exit 0
+BIN
+
+  chmod +x "$bin_dir/tailscale" "$bin_dir/tmux" "$bin_dir/sudo" "$bin_dir/ssh" "$bin_dir/systemctl" "$bin_dir/apt-get" "$bin_dir/curl"
 }
 
 make_fake_macos_bin() {
@@ -194,6 +207,9 @@ make_fake_macos_bin() {
 set -euo pipefail
 cmd="${1:-}"
 shift || true
+if [[ -n "${BREW_CALLS_FILE:-}" ]]; then
+  printf '%s %s\n' "$cmd" "$*" >> "$BREW_CALLS_FILE"
+fi
 case "$cmd" in
   --prefix)
     printf '%s\n' "${BREW_PREFIX:?missing BREW_PREFIX}"
@@ -210,7 +226,7 @@ case "$cmd" in
     fi
     exit 1
     ;;
-  install|link|unlink|uninstall)
+  install|link|unlink|uninstall|upgrade)
     exit 0
     ;;
   services)
@@ -228,6 +244,33 @@ BIN
 BIN
 
   chmod +x "$bin_dir/brew" "$bin_dir/sudo"
+}
+
+make_fake_tailscale_installer_capture_bin() {
+  local bin_dir="${1:?missing bin dir}"
+
+  cat > "$bin_dir/curl" <<'BIN'
+#!/usr/bin/env bash
+if [[ -n "${CURL_CALLS_FILE:-}" ]]; then
+  printf '%s\n' "$*" >> "$CURL_CALLS_FILE"
+fi
+printf '%s\n' '#!/usr/bin/env bash'
+printf '%s\n' 'exit 0'
+BIN
+
+  cat > "$bin_dir/sh" <<'BIN'
+#!/usr/bin/env bash
+cat >/dev/null
+if [[ -n "${TAILSCALE_INSTALL_ENV_FILE:-}" ]]; then
+  {
+    printf 'TRACK=%s\n' "${TRACK:-}"
+    printf 'TAILSCALE_VERSION=%s\n' "${TAILSCALE_VERSION:-}"
+  } > "$TAILSCALE_INSTALL_ENV_FILE"
+fi
+exit 0
+BIN
+
+  chmod +x "$bin_dir/curl" "$bin_dir/sh"
 }
 
 test_syntax_checks() {
@@ -291,6 +334,7 @@ n
 INP
 )"
   [[ "$out" == *"Core setup is already installed!"* ]] || fail "expected idempotent core setup message"
+  [[ "$out" == *"Reconciling installed Tailscale with dependency policy"* ]] || fail "expected policy reconciliation during idempotent run"
   pass "install idempotence"
 }
 
@@ -536,6 +580,120 @@ INP
   pass "linux tailscale ssh enabled"
 }
 
+test_linux_tailscale_policy_propagation() {
+  local tmp
+  local fake_bin
+  local env_file
+  local curl_calls_file
+  local out
+  local test_path
+  tmp="$(mktemp -d)"
+  fake_bin="$tmp/bin"
+  env_file="$tmp/home/tailscale-installer.env"
+  curl_calls_file="$tmp/home/curl.calls"
+  mkdir -p "$fake_bin" "$tmp/home"
+  make_fake_bin "$fake_bin"
+  make_fake_tailscale_installer_capture_bin "$fake_bin"
+  rm -f "$fake_bin/tailscale"
+  test_path="$fake_bin:/usr/bin:/bin"
+
+  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$test_path" CURL_CALLS_FILE="$curl_calls_file" TAILSCALE_INSTALL_ENV_FILE="$env_file" TAILMUX_TAILSCALE_TRACK=unstable TAILMUX_TAILSCALE_VERSION=1.88.4 TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
+y
+n
+INP
+)"
+
+  [[ "$out" == *"Using Tailscale track 'unstable' pinned to version '1.88.4'"* ]] || fail "expected pinned policy log line"
+  assert_contains "$env_file" '^TRACK=unstable$'
+  assert_contains "$env_file" '^TAILSCALE_VERSION=1\.88\.4$'
+  assert_contains "$curl_calls_file" 'https://tailscale\.com/install\.sh'
+  pass "linux tailscale policy propagation"
+}
+
+test_linux_tailscale_policy_default_latest() {
+  local tmp
+  local fake_bin
+  local env_file
+  local out
+  local test_path
+  tmp="$(mktemp -d)"
+  fake_bin="$tmp/bin"
+  env_file="$tmp/home/tailscale-installer.env"
+  mkdir -p "$fake_bin" "$tmp/home"
+  make_fake_bin "$fake_bin"
+  make_fake_tailscale_installer_capture_bin "$fake_bin"
+  rm -f "$fake_bin/tailscale"
+  test_path="$fake_bin:/usr/bin:/bin"
+
+  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$test_path" TAILSCALE_INSTALL_ENV_FILE="$env_file" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
+y
+n
+INP
+)"
+
+  [[ "$out" == *"Using Tailscale track 'stable' with latest available version"* ]] || fail "expected latest policy log line"
+  assert_contains "$env_file" '^TRACK=stable$'
+  assert_contains "$env_file" '^TAILSCALE_VERSION=$'
+  pass "linux tailscale policy default latest"
+}
+
+test_linux_tailscale_policy_reconciles_when_installed() {
+  local tmp
+  local fake_bin
+  local env_file
+  local out
+  local test_path
+  tmp="$(mktemp -d)"
+  fake_bin="$tmp/bin"
+  env_file="$tmp/home/tailscale-installer.env"
+  mkdir -p "$fake_bin" "$tmp/home"
+  make_fake_bin "$fake_bin"
+  make_fake_tailscale_installer_capture_bin "$fake_bin"
+  test_path="$fake_bin:/usr/bin:/bin"
+
+  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$test_path" TAILSCALE_INSTALL_ENV_FILE="$env_file" TAILMUX_TAILSCALE_TRACK=unstable TAILMUX_TAILSCALE_VERSION=1.88.4 TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
+y
+n
+INP
+)"
+
+  [[ "$out" == *"Reconciling installed Tailscale with dependency policy"* ]] || fail "expected reconcile message for preinstalled tailscale"
+  [[ "$out" == *"Tailscale policy reconciliation complete"* ]] || fail "expected reconciliation completion message"
+  assert_contains "$env_file" '^TRACK=unstable$'
+  assert_contains "$env_file" '^TAILSCALE_VERSION=1\.88\.4$'
+  pass "linux tailscale policy reconciliation when installed"
+}
+
+test_linux_preinstalled_tailscale_reconcile_failure_non_fatal() {
+  local tmp
+  local fake_bin
+  local out
+  tmp="$(mktemp -d)"
+  fake_bin="$tmp/bin"
+  mkdir -p "$fake_bin" "$tmp/home"
+  make_fake_bin "$fake_bin"
+
+  cat > "$fake_bin/curl" <<'BIN'
+#!/usr/bin/env bash
+if [[ "$*" == *"https://tailscale.com/install.sh"* ]]; then
+  exit 1
+fi
+exit 0
+BIN
+  chmod +x "$fake_bin/curl"
+
+  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
+y
+n
+INP
+)"
+
+  [[ "$out" == *"Could not reconcile installed Tailscale with dependency policy. Keeping existing install."* ]] || fail "expected non-fatal reconcile failure warning"
+  [[ "$out" == *"Setup complete!"* ]] || fail "expected setup completion after reconcile failure with preinstalled tailscale"
+  assert_contains "$tmp/home/.profile" '^# >>> tailmux managed block \(tailmux\) >>>$'
+  pass "linux preinstalled tailscale reconcile failure is non-fatal"
+}
+
 test_malformed_tailmux_block_not_modified() {
   local tmp
   local fake_bin
@@ -592,21 +750,93 @@ INP
   pass "mocked macOS tailscale path selection"
 }
 
-test_curl_style_bootstrap() {
+test_macos_formula_upgrade_attempted() {
   local tmp
   local fake_bin
+  local brew_prefix
+  local brew_calls_file
   local out
   tmp="$(mktemp -d)"
   fake_bin="$tmp/bin"
+  brew_prefix="$tmp/homebrew"
+  brew_calls_file="$tmp/home/brew.calls"
+  mkdir -p "$fake_bin" "$tmp/home"
+  make_fake_macos_bin "$fake_bin" "$brew_prefix"
+
+  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
+y
+n
+INP
+  : > "$brew_calls_file"
+
+  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
+n
+INP
+)"
+
+  [[ "$out" == *"Core setup is already installed!"* ]] || fail "expected idempotent core setup message on macOS rerun"
+  [[ "$out" == *"Upgrading Homebrew Tailscale formula (if needed)"* ]] || fail "expected upgrade step for existing macOS formula install"
+  assert_contains "$brew_calls_file" '^upgrade tailscale$'
+  pass "macOS formula upgrade attempted on idempotent rerun"
+}
+
+test_macos_tailscale_version_pin_warning() {
+  local tmp
+  local fake_bin
+  local brew_prefix
+  local out
+  tmp="$(mktemp -d)"
+  fake_bin="$tmp/bin"
+  brew_prefix="$tmp/homebrew"
+  mkdir -p "$fake_bin" "$tmp/home"
+  make_fake_macos_bin "$fake_bin" "$brew_prefix"
+
+  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" TAILMUX_TAILSCALE_VERSION=1.88.4 TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
+y
+n
+INP
+)"
+
+  [[ "$out" == *"Pinned Tailscale version '1.88.4' is Linux-only in this installer."* ]] || fail "expected macOS pin warning"
+  [[ "$out" == *"Tailscale already installed (Homebrew formula)"* ]] || fail "expected mocked macOS formula path"
+  [[ "$out" == *"Setup complete!"* ]] || fail "expected mocked macOS setup completion"
+  pass "macOS tailscale pin warning"
+}
+
+test_curl_style_bootstrap() {
+  local tmp
+  local fake_bin
+  local curl_calls_file
+  local real_curl
+  local out
+  tmp="$(mktemp -d)"
+  fake_bin="$tmp/bin"
+  curl_calls_file="$tmp/home/curl.calls"
   mkdir -p "$fake_bin" "$tmp/home"
   make_fake_bin "$fake_bin"
+  real_curl="$(command -v curl)"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_RAW_BASE="file://$REPO_ROOT" bash <(cat "$SETUP_SCRIPT") install <<'INP'
+  cat > "$fake_bin/curl" <<BIN
+#!/usr/bin/env bash
+if [[ -n "\${CURL_CALLS_FILE:-}" ]]; then
+  printf '%s\n' "\$*" >> "\$CURL_CALLS_FILE"
+fi
+if [[ "\$*" == *"https://tailscale.com/install.sh"* ]]; then
+  printf '%s\n' '#!/usr/bin/env bash'
+  printf '%s\n' 'exit 0'
+  exit 0
+fi
+exec "$real_curl" "\$@"
+BIN
+  chmod +x "$fake_bin/curl"
+
+  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" CURL_CALLS_FILE="$curl_calls_file" TAILMUX_OS_OVERRIDE=Linux TAILMUX_RAW_BASE="file://$REPO_ROOT" bash <(cat "$SETUP_SCRIPT") install <<'INP'
 y
 n
 INP
 )"
   [[ "$out" == *"Setup complete!"* ]] || fail "expected curl-style setup completion"
+  assert_contains "$curl_calls_file" 'dependency_policy\.sh'
   assert_contains "$tmp/home/.profile" '^# >>> tailmux managed block \(tailmux\) >>>$'
   pass "curl-style bootstrap"
 }
@@ -725,8 +955,14 @@ main() {
   test_linux_unauthenticated_skips_operator
   test_linux_starts_tailscaled_when_down
   test_linux_tailscale_ssh_enabled
+  test_linux_tailscale_policy_propagation
+  test_linux_tailscale_policy_default_latest
+  test_linux_tailscale_policy_reconciles_when_installed
+  test_linux_preinstalled_tailscale_reconcile_failure_non_fatal
   test_malformed_tailmux_block_not_modified
   test_macos_path_selection_mocked
+  test_macos_formula_upgrade_attempted
+  test_macos_tailscale_version_pin_warning
   test_curl_style_bootstrap
   test_tailmux_rejects_option_target
   test_uninstall_tailscale_state_requires_typed_confirmation

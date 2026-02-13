@@ -134,12 +134,9 @@ do_install() {
     if [[ "$tailmux_refresh_needed" == true ]]; then
       install_shell_function
     fi
-    if [[ "$os_name" == "Linux" ]]; then
-      if command_exists tailscale; then
-        ensure_linux_tailscale_operator "$os_name"
-        if ! ensure_linux_tailscale_ssh "$os_name"; then
-          print_warning "Could not enable Tailscale SSH automatically."
-        fi
+    if command_exists tailscale || { [[ "$os_name" == "Darwin" ]] && command_exists brew; }; then
+      if ! install_tailscale; then
+        print_warning "Could not reconcile Tailscale with current dependency policy."
       fi
     fi
     if [[ "$taildrive_refresh_needed" == true ]]; then

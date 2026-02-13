@@ -22,6 +22,31 @@ Before connecting, make sure remote access is enabled on the destination:
 - macOS: System Settings → General → Sharing → Remote Login
 - Linux: `sudo tailscale up --ssh` (no OpenSSH daemon required)
 
+## Dependency Version Policy
+
+Dependency upgrade policy is centralized in:
+
+- `scripts/lib/dependency_policy.sh`
+
+Edit that file to control Tailscale upgrades from one place:
+
+```bash
+# Default track
+TAILMUX_TAILSCALE_TRACK=stable
+
+# Pin Linux to an exact version
+TAILMUX_TAILSCALE_VERSION=1.88.4
+
+# Or leave empty to install the latest version in the selected track
+TAILMUX_TAILSCALE_VERSION=
+```
+
+Notes:
+- Linux installs use `TRACK` and `TAILSCALE_VERSION` from this policy file.
+- Re-run `setup.sh install` after changing policy values to reconcile an existing install.
+- macOS remains on Homebrew `tailscale` formula latest in this phase.
+- Optional manual macOS hold on one machine: `brew pin tailscale` (undo with `brew unpin tailscale`).
+
 ## Usage
 
 ```bash
@@ -287,6 +312,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/ddv1982/tailmux/main/setup.s
 `setup.sh` is a thin entrypoint that loads modules from `scripts/lib`:
 
 - `constants.sh`
+- `dependency_policy.sh`
 - `ui.sh`
 - `platform.sh`
 - `taildrive_templates.sh`

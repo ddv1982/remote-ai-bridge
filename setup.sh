@@ -11,6 +11,7 @@ RC_FILE=""
 
 REQUIRED_MODULES=(
   "constants.sh"
+  "dependency_policy.sh"
   "ui.sh"
   "platform.sh"
   "taildrive_templates.sh"

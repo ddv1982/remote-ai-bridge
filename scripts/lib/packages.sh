@@ -173,7 +173,13 @@ ensure_linux_tailscale_ssh() {
 
 install_tailscale() {
   local os_name
+  local tailscale_track
+  local tailscale_version
+  local tailscale_preinstalled=false
+  local tailscale_reconciled=false
   os_name="$(get_os_name)"
+  tailscale_track="${TAILMUX_TAILSCALE_TRACK:-stable}"
+  tailscale_version="${TAILMUX_TAILSCALE_VERSION:-}"
 
   print_step "Installing Tailscale"
   if [[ "$os_name" == "Darwin" ]]; then
@@ -182,19 +188,43 @@ install_tailscale() {
   fi
 
   if command_exists tailscale; then
+    tailscale_preinstalled=true
     print_success "Tailscale already installed"
-    ensure_linux_tailscale_operator "$os_name"
-    ensure_linux_tailscale_ssh "$os_name"
-    return 0
+    print_step "Reconciling installed Tailscale with dependency policy"
   fi
   if ! command_exists curl; then
+    if [[ "$tailscale_preinstalled" == true ]]; then
+      print_warning "curl not found. Skipping Tailscale policy reconciliation and keeping existing install."
+      ensure_linux_tailscale_operator "$os_name"
+      ensure_linux_tailscale_ssh "$os_name"
+      return 0
+    fi
     print_warning "curl not found. Install Tailscale manually: https://tailscale.com/download"
     return 0
   fi
 
   print_warning "This will download and run the official Tailscale install script"
-  curl -fsSL https://tailscale.com/install.sh | sh
-  print_success "Tailscale installed"
+  if [[ -n "$tailscale_version" ]]; then
+    print_step "Using Tailscale track '$tailscale_track' pinned to version '$tailscale_version'"
+  else
+    print_step "Using Tailscale track '$tailscale_track' with latest available version"
+  fi
+  if curl -fsSL https://tailscale.com/install.sh | TRACK="$tailscale_track" TAILSCALE_VERSION="$tailscale_version" sh; then
+    tailscale_reconciled=true
+  elif [[ "$tailscale_preinstalled" == true ]]; then
+    print_warning "Could not reconcile installed Tailscale with dependency policy. Keeping existing install."
+  else
+    print_error "Tailscale installation failed."
+    return 1
+  fi
+
+  if [[ "$tailscale_reconciled" == true ]]; then
+    if [[ "$tailscale_preinstalled" == true ]]; then
+      print_success "Tailscale policy reconciliation complete"
+    else
+      print_success "Tailscale installed"
+    fi
+  fi
   if ! ensure_linux_tailscaled_running "$os_name"; then
     return 1
   fi

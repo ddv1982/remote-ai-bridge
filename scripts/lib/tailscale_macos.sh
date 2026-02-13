@@ -110,6 +110,12 @@ install_tailscale_macos() {
   tailscale_state="$(detect_macos_tailscale_state)"
   tailscale_bin="$(detect_macos_tailscale_binary)"
 
+  if [[ -n "${TAILMUX_TAILSCALE_VERSION:-}" ]]; then
+    print_warning "Pinned Tailscale version '${TAILMUX_TAILSCALE_VERSION}' is Linux-only in this installer."
+    print_warning "macOS continues to use the Homebrew tailscale formula (latest available)."
+    print_warning "Optional manual per-machine pin: brew pin tailscale"
+  fi
+
   if [[ "$tailscale_state" == "standalone" ]]; then
     print_error "Detected standalone/App Store Tailscale install on macOS."
     if [[ -n "$tailscale_bin" ]]; then
@@ -145,6 +151,13 @@ install_tailscale_macos() {
     "$brew_bin" install tailscale
   else
     print_success "Tailscale already installed (Homebrew formula)"
+    print_step "Upgrading Homebrew Tailscale formula (if needed)"
+    if "$brew_bin" upgrade tailscale >/dev/null 2>&1; then
+      print_success "Homebrew Tailscale formula is up to date"
+    else
+      print_warning "Could not upgrade Homebrew Tailscale formula automatically."
+      print_warning "Run manually: brew upgrade tailscale"
+    fi
   fi
 
   if ! command_exists tailscale; then
