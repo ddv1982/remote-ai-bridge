@@ -157,11 +157,7 @@ do_install() {
     echo ""
     print_reload_shell_hint "$os_name"
     if command_exists tailscale; then
-      if [[ "$os_name" == "Linux" ]]; then
-        echo "If not authenticated yet, run: sudo tailscale up --ssh"
-      else
-        echo "If not authenticated yet, run: tailscale up"
-      fi
+      echo "If not authenticated yet, run: sudo tailscale up --ssh"
     fi
     echo "Usage: tailmux <hostname>"
     echo "       tailmux doctor <hostname>"
@@ -209,23 +205,18 @@ do_install() {
   print_success "Setup complete!"
   echo ""
   echo "Next steps:"
+  local step=1
+  echo "  $step. Authenticate with Tailscale and enable Tailscale SSH: sudo tailscale up --ssh"
+  echo "     (Opens browser for login - required first time)"
+  ((step++))
   if [[ "$os_name" == "Linux" ]]; then
-    local step=1
-    echo "  $step. Authenticate with Tailscale and enable Tailscale SSH: sudo tailscale up --ssh"
-    echo "     (Opens browser for login - required first time)"
-    ((step++))
     echo "  $step. After login, enable passwordless access: sudo tailscale set --operator=\$USER"
     ((step++))
-    echo "  $step. Open a new terminal, or run: source $RC_FILE"
-    ((step++))
-    echo "  $step. Connect: tailmux <hostname>"
-  else
-    echo "  1. Authenticate with Tailscale (if not already): tailscale up"
-    echo "  2. Ensure SSH is enabled on the destination (macOS: Remote Login)"
-    echo "  3. Open a new Terminal window, or run: source $RC_FILE"
-    echo "  4. Connect: tailmux <hostname>"
-    echo "     Diagnose resolution issues: tailmux doctor <hostname>"
   fi
+  echo "  $step. Open a new terminal, or run: source $RC_FILE"
+  ((step++))
+  echo "  $step. Connect: tailmux <hostname>"
+  echo "     Diagnose resolution issues: tailmux doctor <hostname>"
   if [[ "$taildrive_installed" == true ]]; then
     echo ""
     print_taildrive_help

@@ -5,8 +5,7 @@
 - **Host not found / passthrough mode**: Run `tailmux doctor <hostname>` and `tailscale dns status --all` to check resolution.
 - **Short hostnames fail**: On macOS with the open-source CLI, MagicDNS short names may not resolve. Use the tailnet FQDN or add a stable alias in `~/.config/tailmux/hosts`.
 - **LAN fallback**: Set `TAILMUX_LAN_FALLBACK=1` to try `<host>.local` before giving up.
-- **Connection refused on macOS**: Enable Remote Login in System Settings > General > Sharing.
-- **Connection refused on Linux**: Run `sudo tailscale up --ssh` to enable Tailscale SSH.
+- **Connection refused**: Run `sudo tailscale set --ssh` to enable Tailscale SSH on the destination.
 
 ## Tailscale on macOS
 

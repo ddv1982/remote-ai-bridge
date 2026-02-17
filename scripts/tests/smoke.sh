@@ -565,7 +565,7 @@ INP
   pass "linux tailscaled auto-start"
 }
 
-test_linux_tailscale_ssh_enabled() {
+test_tailscale_ssh_enabled() {
   local tmp
   local fake_bin
   local calls_file
@@ -582,10 +582,35 @@ n
 INP
 )"
 
-  [[ "$out" == *"Enabling Tailscale SSH on this device"* ]] || fail "expected Tailscale SSH enable step"
-  [[ "$out" == *"Tailscale SSH enabled"* ]] || fail "expected Tailscale SSH enabled message"
+  [[ "$out" == *"Enabling Tailscale SSH on this device"* ]] || fail "expected Tailscale SSH enable step (Linux)"
+  [[ "$out" == *"Tailscale SSH enabled"* ]] || fail "expected Tailscale SSH enabled message (Linux)"
   assert_occurrences "$calls_file" '^set --ssh$' 1
-  pass "linux tailscale ssh enabled"
+  pass "tailscale ssh enabled (Linux)"
+}
+
+test_macos_tailscale_ssh_enabled() {
+  local tmp
+  local fake_bin
+  local brew_prefix
+  local calls_file
+  local out
+  tmp="$(mktemp -d)"
+  fake_bin="$tmp/bin"
+  brew_prefix="$tmp/homebrew"
+  calls_file="$tmp/home/tailscale.calls"
+  mkdir -p "$fake_bin" "$tmp/home"
+  make_fake_macos_bin "$fake_bin" "$brew_prefix"
+
+  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" USER=tailuser TAILSCALE_CALLS_FILE="$calls_file" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
+y
+n
+INP
+)"
+
+  [[ "$out" == *"Enabling Tailscale SSH on this device"* ]] || fail "expected Tailscale SSH enable step (macOS)"
+  [[ "$out" == *"Tailscale SSH enabled"* ]] || fail "expected Tailscale SSH enabled message (macOS)"
+  assert_occurrences "$calls_file" '^set --ssh$' 1
+  pass "tailscale ssh enabled (macOS)"
 }
 
 test_linux_tailscale_policy_propagation() {
@@ -1207,7 +1232,8 @@ main() {
   test_linux_operator_configured
   test_linux_unauthenticated_skips_operator
   test_linux_starts_tailscaled_when_down
-  test_linux_tailscale_ssh_enabled
+  test_tailscale_ssh_enabled
+  test_macos_tailscale_ssh_enabled
   test_linux_tailscale_policy_propagation
   test_linux_tailscale_policy_default_latest
   test_linux_tailscale_policy_reconciles_when_installed

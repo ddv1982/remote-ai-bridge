@@ -141,17 +141,23 @@ ensure_linux_tailscale_operator() {
   return 0
 }
 
-ensure_linux_tailscale_ssh() {
+ensure_tailscale_ssh() {
   local os_name="${1:?missing os name}"
 
-  if [[ "$os_name" != "Linux" ]]; then
-    return 0
-  fi
   if ! command_exists tailscale; then
     return 0
   fi
-  if ! ensure_linux_tailscaled_running "$os_name"; then
-    return 1
+
+  # Ensure daemon is reachable (platform-specific)
+  if [[ "$os_name" == "Linux" ]]; then
+    if ! ensure_linux_tailscaled_running "$os_name"; then
+      return 1
+    fi
+  else
+    if ! tailscale_daemon_reachable; then
+      print_warning "Tailscale daemon is not reachable; cannot enable Tailscale SSH."
+      return 1
+    fi
   fi
 
   print_step "Enabling Tailscale SSH on this device"
@@ -181,7 +187,8 @@ install_tailscale() {
 
   print_step "Installing Tailscale"
   if [[ "$os_name" == "Darwin" ]]; then
-    install_tailscale_macos
+    install_tailscale_macos || return $?
+    ensure_tailscale_ssh "$os_name"
     return $?
   fi
 
@@ -194,7 +201,7 @@ install_tailscale() {
     if [[ "$tailscale_preinstalled" == true ]]; then
       print_warning "curl not found. Skipping Tailscale policy reconciliation and keeping existing install."
       ensure_linux_tailscale_operator "$os_name"
-      ensure_linux_tailscale_ssh "$os_name"
+      ensure_tailscale_ssh "$os_name"
       return 0
     fi
     print_warning "curl not found. Install Tailscale manually: https://tailscale.com/download"
@@ -223,7 +230,7 @@ install_tailscale() {
     return 1
   fi
   ensure_linux_tailscale_operator "$os_name"
-  ensure_linux_tailscale_ssh "$os_name"
+  ensure_tailscale_ssh "$os_name"
 }
 
 install_tmux() {

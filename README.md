@@ -23,9 +23,7 @@ tailmux 100.101.102.103   # connect by Tailscale IP
 
 - bash and curl
 - A [Tailscale](https://tailscale.com) account
-- Remote access enabled on the destination:
-  - macOS: System Settings > General > Sharing > Remote Login
-  - Linux: `sudo tailscale up --ssh` (no OpenSSH daemon required)
+- Tailscale SSH enabled on the destination: `sudo tailscale up --ssh`
 
 ## Quick Start
 
@@ -36,7 +34,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/ddv1982/tailmux/main/setup.s
 This will:
 - Install Tailscale and tmux (Homebrew on macOS, system package manager on Linux)
 - Add the `tailmux` shell function
-- On Linux, configure Tailscale operator access and enable Tailscale SSH
+- Configure Tailscale operator access (Linux) and enable Tailscale SSH
 - Optionally install [Taildrive](#file-sharing-taildrive) shell functions
 
 ## Setup Commands
@@ -107,7 +105,7 @@ For troubleshooting connection issues, Tailscale on macOS, and Linux mounts, see
 
 | OS | Package Manager | Remote Access Mode |
 |----|-----------------|--------------------|
-| macOS | Homebrew | OpenSSH (Remote Login) |
+| macOS | Homebrew | Tailscale SSH |
 | Debian/Ubuntu | apt | Tailscale SSH (no OpenSSH required) |
 | Fedora | dnf | Tailscale SSH (no OpenSSH required) |
 | RHEL/CentOS | yum | Tailscale SSH (no OpenSSH required) |
@@ -122,9 +120,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/ddv1982/tailmux/main/setup.s
 
 ## Notes
 
-- Your tailnet ACLs must allow remote access for your chosen mode:
-  - Linux default in this repo: Tailscale SSH policy
-  - macOS / OpenSSH mode: network access to TCP port 22
+- Your tailnet ACLs must allow Tailscale SSH access (all platforms use Tailscale SSH policy)
 - You can set simpler machine names in the [Tailscale admin console](https://login.tailscale.com/admin/machines) by clicking on a device and editing its name
 
 ## Development
