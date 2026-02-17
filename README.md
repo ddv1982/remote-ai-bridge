@@ -28,24 +28,14 @@ Dependency upgrade policy is centralized in:
 
 - `scripts/lib/dependency_policy.sh`
 
-Edit that file to control Tailscale upgrades from one place:
+All managed packages (`tailscale`, `tmux`, `davfs2`) always track the latest stable version. The Tailscale install track can be changed:
 
 ```bash
-# Default track
+# Default track (stable or unstable)
 TAILMUX_TAILSCALE_TRACK=stable
-
-# Pin Linux to an exact version
-TAILMUX_TAILSCALE_VERSION=1.94.1
-
-# Or leave empty to install the latest version in the selected track
-TAILMUX_TAILSCALE_VERSION=
 ```
 
-Notes:
-- Linux installs use `TRACK` and `TAILSCALE_VERSION` from this policy file.
-- Re-run `setup.sh install` after changing policy values to reconcile an existing install.
-- macOS remains on Homebrew `tailscale` formula latest in this phase.
-- Optional manual macOS hold on one machine: `brew pin tailscale` (undo with `brew unpin tailscale`).
+Use `setup.sh update` to check for and apply available updates.
 
 ## Usage
 
@@ -55,6 +45,20 @@ tailmux doctor <host>
 ```
 
 Connects to the host over Tailscale and attaches to an existing tmux session (or creates a new one).
+
+### Updating
+
+Check for and apply updates to all managed packages:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/ddv1982/tailmux/main/setup.sh) update
+```
+
+Or with local modules:
+
+```bash
+TAILMUX_USE_LOCAL_MODULES=1 bash setup.sh update
+```
 
 - `hostname` - Tailscale device name or IP
 - `doctor` - run resolver diagnostics for a host
@@ -321,6 +325,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/ddv1982/tailmux/main/setup.s
 - `package_manager.sh`
 - `tailscale_macos.sh`
 - `packages.sh`
+- `update.sh`
 - `install.sh`
 - `uninstall.sh`
 - `cli.sh`

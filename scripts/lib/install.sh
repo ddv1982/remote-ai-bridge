@@ -153,6 +153,7 @@ do_install() {
     else
       enable_macos_taildrive_filesharing_ui "$os_name"
     fi
+    _hint_available_updates
     echo ""
     print_reload_shell_hint "$os_name"
     if command_exists tailscale; then

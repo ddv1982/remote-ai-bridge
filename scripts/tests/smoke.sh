@@ -273,7 +273,6 @@ cat >/dev/null
 if [[ -n "${TAILSCALE_INSTALL_ENV_FILE:-}" ]]; then
   {
     printf 'TRACK=%s\n' "${TRACK:-}"
-    printf 'TAILSCALE_VERSION=%s\n' "${TAILSCALE_VERSION:-}"
   } > "$TAILSCALE_INSTALL_ENV_FILE"
 fi
 exit 0
@@ -606,15 +605,14 @@ test_linux_tailscale_policy_propagation() {
   rm -f "$fake_bin/tailscale"
   test_path="$fake_bin:/usr/bin:/bin"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$test_path" CURL_CALLS_FILE="$curl_calls_file" TAILSCALE_INSTALL_ENV_FILE="$env_file" TAILMUX_TAILSCALE_TRACK=unstable TAILMUX_TAILSCALE_VERSION=1.94.1 TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
+  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$test_path" CURL_CALLS_FILE="$curl_calls_file" TAILSCALE_INSTALL_ENV_FILE="$env_file" TAILMUX_TAILSCALE_TRACK=unstable TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
 y
 n
 INP
 )"
 
-  [[ "$out" == *"Using Tailscale track 'unstable' pinned to version '1.94.1'"* ]] || fail "expected pinned policy log line"
+  [[ "$out" == *"Using Tailscale track 'unstable' (latest available)"* ]] || fail "expected track policy log line"
   assert_contains "$env_file" '^TRACK=unstable$'
-  assert_contains "$env_file" '^TAILSCALE_VERSION=1\.94\.1$'
   assert_contains "$curl_calls_file" 'https://tailscale\.com/install\.sh'
   pass "linux tailscale policy propagation"
 }
@@ -640,9 +638,8 @@ n
 INP
 )"
 
-  [[ "$out" == *"Using Tailscale track 'stable' with latest available version"* ]] || fail "expected latest policy log line"
+  [[ "$out" == *"Using Tailscale track 'stable' (latest available)"* ]] || fail "expected latest policy log line"
   assert_contains "$env_file" '^TRACK=stable$'
-  assert_contains "$env_file" '^TAILSCALE_VERSION=$'
   pass "linux tailscale policy default latest"
 }
 
@@ -660,7 +657,7 @@ test_linux_tailscale_policy_reconciles_when_installed() {
   make_fake_tailscale_installer_capture_bin "$fake_bin"
   test_path="$fake_bin:/usr/bin:/bin"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$test_path" TAILSCALE_INSTALL_ENV_FILE="$env_file" TAILMUX_TAILSCALE_TRACK=unstable TAILMUX_TAILSCALE_VERSION=1.94.1 TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
+  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$test_path" TAILSCALE_INSTALL_ENV_FILE="$env_file" TAILMUX_TAILSCALE_TRACK=unstable TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
 y
 n
 INP
@@ -669,7 +666,6 @@ INP
   [[ "$out" == *"Reconciling installed Tailscale with dependency policy"* ]] || fail "expected reconcile message for preinstalled tailscale"
   [[ "$out" == *"Tailscale policy reconciliation complete"* ]] || fail "expected reconciliation completion message"
   assert_contains "$env_file" '^TRACK=unstable$'
-  assert_contains "$env_file" '^TAILSCALE_VERSION=1\.94\.1$'
   pass "linux tailscale policy reconciliation when installed"
 }
 
@@ -818,29 +814,6 @@ INP
     fail "did not expect brew upgrade when tailscale is already up to date"
   fi
   pass "macOS formula up-to-date skips upgrade"
-}
-
-test_macos_tailscale_version_pin_warning() {
-  local tmp
-  local fake_bin
-  local brew_prefix
-  local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  brew_prefix="$tmp/homebrew"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_macos_bin "$fake_bin" "$brew_prefix"
-
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" TAILMUX_TAILSCALE_VERSION=1.94.1 TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
-
-  [[ "$out" == *"Pinned Tailscale version '1.94.1' is Linux-only in this installer."* ]] || fail "expected macOS pin warning"
-  [[ "$out" == *"Tailscale already installed (Homebrew formula)"* ]] || fail "expected mocked macOS formula path"
-  [[ "$out" == *"Setup complete!"* ]] || fail "expected mocked macOS setup completion"
-  pass "macOS tailscale pin warning"
 }
 
 test_curl_style_bootstrap() {
@@ -1003,7 +976,6 @@ main() {
   test_macos_path_selection_mocked
   test_macos_formula_upgrade_attempted
   test_macos_formula_up_to_date_skips_upgrade
-  test_macos_tailscale_version_pin_warning
   test_curl_style_bootstrap
   test_tailmux_rejects_option_target
   test_uninstall_tailscale_state_requires_typed_confirmation
