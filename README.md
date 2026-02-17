@@ -22,6 +22,14 @@ Before connecting, make sure remote access is enabled on the destination:
 - macOS: System Settings → General → Sharing → Remote Login
 - Linux: `sudo tailscale up --ssh` (no OpenSSH daemon required)
 
+## Setup Commands
+
+```bash
+bash setup.sh install    # install/configure everything
+bash setup.sh uninstall  # remove shell functions and optionally Tailscale state
+bash setup.sh update     # check for and apply package updates
+```
+
 ## Dependency Version Policy
 
 Dependency upgrade policy is centralized in:
@@ -78,10 +86,11 @@ tailmux doctor home       # diagnose host resolution path for `home`
 `tailmux` resolves hosts in this order to reduce breakage when short-name DNS is unreliable on some macOS/Tailscale combinations:
 
 1. Direct IP input
-2. `tailscale status --json` (device hostname / short name / FQDN)
-3. `tailscale dns query` against your tailnet suffix
-4. Optional LAN fallback (`<host>.local`) when `TAILMUX_LAN_FALLBACK=1`
-5. System DNS lookup
+2. User alias file (`~/.config/tailmux/hosts`)
+3. `tailscale status --json` (device hostname / short name / FQDN)
+4. `tailscale dns query` against your tailnet suffix
+5. Optional LAN fallback (`<host>.local`) when `TAILMUX_LAN_FALLBACK=1`
+6. System DNS lookup
 
 Optional alias file:
 
