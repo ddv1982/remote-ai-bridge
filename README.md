@@ -22,30 +22,28 @@ Before connecting, make sure remote access is enabled on the destination:
 - macOS: System Settings → General → Sharing → Remote Login
 - Linux: `sudo tailscale up --ssh` (no OpenSSH daemon required)
 
+## Setup Commands
+
+```bash
+bash setup.sh install    # install/configure everything
+bash setup.sh uninstall  # remove shell functions and optionally Tailscale state
+bash setup.sh update     # check for and apply package updates
+```
+
 ## Dependency Version Policy
 
 Dependency upgrade policy is centralized in:
 
 - `scripts/lib/dependency_policy.sh`
 
-Edit that file to control Tailscale upgrades from one place:
+All managed packages (`tailscale`, `tmux`, `davfs2`) always track the latest stable version. The Tailscale install track can be changed:
 
 ```bash
-# Default track
+# Default track (stable or unstable)
 TAILMUX_TAILSCALE_TRACK=stable
-
-# Pin Linux to an exact version
-TAILMUX_TAILSCALE_VERSION=1.94.1
-
-# Or leave empty to install the latest version in the selected track
-TAILMUX_TAILSCALE_VERSION=
 ```
 
-Notes:
-- Linux installs use `TRACK` and `TAILSCALE_VERSION` from this policy file.
-- Re-run `setup.sh install` after changing policy values to reconcile an existing install.
-- macOS remains on Homebrew `tailscale` formula latest in this phase.
-- Optional manual macOS hold on one machine: `brew pin tailscale` (undo with `brew unpin tailscale`).
+Use `setup.sh update` to check for and apply available updates.
 
 ## Usage
 
@@ -55,6 +53,20 @@ tailmux doctor <host>
 ```
 
 Connects to the host over Tailscale and attaches to an existing tmux session (or creates a new one).
+
+### Updating
+
+Check for and apply updates to all managed packages:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/ddv1982/tailmux/main/setup.sh) update
+```
+
+Or with local modules:
+
+```bash
+TAILMUX_USE_LOCAL_MODULES=1 bash setup.sh update
+```
 
 - `hostname` - Tailscale device name or IP
 - `doctor` - run resolver diagnostics for a host
@@ -74,10 +86,11 @@ tailmux doctor home       # diagnose host resolution path for `home`
 `tailmux` resolves hosts in this order to reduce breakage when short-name DNS is unreliable on some macOS/Tailscale combinations:
 
 1. Direct IP input
-2. `tailscale status --json` (device hostname / short name / FQDN)
-3. `tailscale dns query` against your tailnet suffix
-4. Optional LAN fallback (`<host>.local`) when `TAILMUX_LAN_FALLBACK=1`
-5. System DNS lookup
+2. User alias file (`~/.config/tailmux/hosts`)
+3. `tailscale status --json` (device hostname / short name / FQDN)
+4. `tailscale dns query` against your tailnet suffix
+5. Optional LAN fallback (`<host>.local`) when `TAILMUX_LAN_FALLBACK=1`
+6. System DNS lookup
 
 Optional alias file:
 
@@ -321,6 +334,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/ddv1982/tailmux/main/setup.s
 - `package_manager.sh`
 - `tailscale_macos.sh`
 - `packages.sh`
+- `update.sh`
 - `install.sh`
 - `uninstall.sh`
 - `cli.sh`

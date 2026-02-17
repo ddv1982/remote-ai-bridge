@@ -20,6 +20,7 @@ REQUIRED_MODULES=(
   "package_manager.sh"
   "tailscale_macos.sh"
   "packages.sh"
+  "update.sh"
   "install.sh"
   "uninstall.sh"
   "cli.sh"

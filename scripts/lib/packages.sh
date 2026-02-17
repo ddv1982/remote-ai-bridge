@@ -174,12 +174,10 @@ ensure_linux_tailscale_ssh() {
 install_tailscale() {
   local os_name
   local tailscale_track
-  local tailscale_version
   local tailscale_preinstalled=false
   local tailscale_reconciled=false
   os_name="$(get_os_name)"
   tailscale_track="${TAILMUX_TAILSCALE_TRACK:-stable}"
-  tailscale_version="${TAILMUX_TAILSCALE_VERSION:-}"
 
   print_step "Installing Tailscale"
   if [[ "$os_name" == "Darwin" ]]; then
@@ -204,12 +202,8 @@ install_tailscale() {
   fi
 
   print_warning "This will download and run the official Tailscale install script"
-  if [[ -n "$tailscale_version" ]]; then
-    print_step "Using Tailscale track '$tailscale_track' pinned to version '$tailscale_version'"
-  else
-    print_step "Using Tailscale track '$tailscale_track' with latest available version"
-  fi
-  if curl -fsSL https://tailscale.com/install.sh | TRACK="$tailscale_track" TAILSCALE_VERSION="$tailscale_version" sh; then
+  print_step "Using Tailscale track '$tailscale_track' (latest available)"
+  if curl -fsSL https://tailscale.com/install.sh | TRACK="$tailscale_track" sh; then
     tailscale_reconciled=true
   elif [[ "$tailscale_preinstalled" == true ]]; then
     print_warning "Could not reconcile installed Tailscale with dependency policy. Keeping existing install."
