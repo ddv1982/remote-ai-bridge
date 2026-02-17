@@ -120,6 +120,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/ddv1982/tailmux/main/setup.s
 
 ## Notes
 
+- All connections use [Tailscale SSH](https://tailscale.com/kb/1193/tailscale-ssh) — no exposed port 22 or system SSH daemon required on any platform
 - Your tailnet ACLs must allow Tailscale SSH access (all platforms use Tailscale SSH policy)
 - You can set simpler machine names in the [Tailscale admin console](https://login.tailscale.com/admin/machines) by clicking on a device and editing its name
 
