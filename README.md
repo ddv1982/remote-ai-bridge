@@ -18,6 +18,7 @@ tailmux 100.101.102.103   # connect by Tailscale IP
 - [Uninstall](#uninstall)
 - [Notes](#notes)
 - [Development](#development)
+- [License](#license)
 
 ## Prerequisites
 
@@ -144,3 +145,7 @@ For local module development:
 ```bash
 TAILMUX_USE_LOCAL_MODULES=1 bash setup.sh install
 ```
+
+## License
+
+Released under the [MIT License](LICENSE).
