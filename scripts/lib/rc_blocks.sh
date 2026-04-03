@@ -9,21 +9,47 @@ tailmux_function_installed() {
   rc_has_shell_function "tailmux"
 }
 
+managed_block_content() {
+  local block_begin="${1:?missing block begin marker}"
+  local block_end="${2:?missing block end marker}"
+  local state
+  local in_block=false
+  local line
+  local content=""
+
+  state="$(managed_block_state "$block_begin" "$block_end")"
+  if [[ "$state" != "valid" ]]; then
+    return 1
+  fi
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == "$block_begin" ]]; then
+      in_block=true
+      continue
+    fi
+    if [[ "$line" == "$block_end" && "$in_block" == true ]]; then
+      break
+    fi
+    if [[ "$in_block" == true ]]; then
+      content+="$line"$'\n'
+    fi
+  done < "$RC_FILE"
+
+  printf '%s' "$content"
+}
+
+managed_block_content_matches() {
+  local block_begin="${1:?missing block begin marker}"
+  local block_end="${2:?missing block end marker}"
+  local expected_content="${3:?missing expected content}"
+  local actual_content
+
+  actual_content="$(managed_block_content "$block_begin" "$block_end")" || return 1
+  [[ "$actual_content" == "$expected_content" ]]
+}
+
 tailmux_function_up_to_date() {
-  if ! tailmux_function_installed; then
-    return 1
-  fi
-  if ! grep -Fq "_tailmux_resolve_target()" "$RC_FILE" 2>/dev/null; then
-    return 1
-  fi
-  if ! grep -Fq "_tailmux_doctor()" "$RC_FILE" 2>/dev/null; then
-    return 1
-  fi
-  if ! grep -Fq '_tailmux_usage' "$RC_FILE" 2>/dev/null || \
-     ! grep -Fq -- '--version' "$RC_FILE" 2>/dev/null; then
-    return 1
-  fi
-  return 0
+  managed_block_content_matches "$TAILMUX_BLOCK_BEGIN" "$TAILMUX_BLOCK_END" "$TAILMUX_FUNC"
 }
 
 taildrive_functions_installed() {
@@ -41,16 +67,15 @@ taildrive_functions_installed() {
 }
 
 taildrive_functions_up_to_date() {
-  if ! taildrive_functions_installed; then
-    return 1
+  local os_name
+  local taildrive_content="$TAILDRIVE_SHARE_FUNCS"
+
+  os_name="$(get_os_name)"
+  if [[ "$os_name" == "Darwin" || "$os_name" == "Linux" ]]; then
+    taildrive_content+=$'\n'"$TAILDRIVE_MOUNT_FUNCS"
   fi
-  if ! grep -Fq "_taildrive_get_os_name()" "$RC_FILE" 2>/dev/null; then
-    return 1
-  fi
-  if grep -Eq '\$\(get_os_name\)' "$RC_FILE" 2>/dev/null; then
-    return 1
-  fi
-  return 0
+
+  managed_block_content_matches "$TAILDRIVE_BLOCK_BEGIN" "$TAILDRIVE_BLOCK_END" "$taildrive_content"
 }
 
 managed_block_state() {

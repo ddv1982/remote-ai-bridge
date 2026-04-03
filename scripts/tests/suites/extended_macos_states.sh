@@ -6,10 +6,7 @@ test_macos_standalone_detection_fails_with_guidance() {
   local out
   local status
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
 
   cat > "$fake_bin/brew" <<'BIN'
 #!/usr/bin/env bash
@@ -32,11 +29,7 @@ BIN
   mkdir -p "$tmp/homebrew/bin"
 
   set +e
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$tmp/homebrew" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' 2>&1
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$tmp/homebrew" 2>&1)"
   status=$?
   set -e
 
@@ -52,10 +45,7 @@ test_macos_cask_decline_migration_fails_cleanly() {
   local out
   local status
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
 
   cat > "$fake_bin/brew" <<'BIN'
 #!/usr/bin/env bash
@@ -84,11 +74,7 @@ BIN
   mkdir -p "$tmp/homebrew/bin"
 
   set +e
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$tmp/homebrew" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' 2>&1
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$tmp/homebrew" 2>&1)"
   status=$?
   set -e
 
@@ -105,12 +91,10 @@ test_macos_formula_unlinked_triggers_link() {
   local brew_calls
   local out
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   brew_prefix="$tmp/homebrew"
   brew_calls="$tmp/home/brew.calls"
-  mkdir -p "$fake_bin" "$tmp/home" "$brew_prefix/Cellar"
-  make_fake_bin "$fake_bin"
+  mkdir -p "$brew_prefix/Cellar"
 
   cat > "$fake_bin/brew" <<'BIN'
 #!/usr/bin/env bash
@@ -149,11 +133,7 @@ esac
 BIN
   chmod +x "$fake_bin/brew"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls")"
 
   [[ "$out" == *"Linking Homebrew Tailscale formula"* ]] || fail "expected link step for formula_unlinked"
   assert_contains "$brew_calls" '^link tailscale$'
@@ -167,10 +147,8 @@ test_macos_daemon_timeout_shows_restart_guidance() {
   local out
   local status
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   brew_prefix="$tmp/homebrew"
-  mkdir -p "$fake_bin" "$tmp/home"
   make_fake_macos_bin "$fake_bin" "$brew_prefix"
 
   cat > "$fake_bin/tailscale" <<'BIN'
@@ -191,11 +169,7 @@ BIN
   chmod +x "$fake_bin/tailscale" "$fake_bin/sleep"
 
   set +e
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' 2>&1
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$brew_prefix" 2>&1)"
   status=$?
   set -e
 

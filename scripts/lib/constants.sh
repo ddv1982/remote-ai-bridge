@@ -15,7 +15,7 @@ else
 fi
 unset _tailmux_version_file
 
-TAILMUX_FUNC="$(cat <<'EOF'
+read -r -d '' TAILMUX_FUNC <<'EOF' || true
 tailmux() {
   _tailmux_usage() {
     echo "tailmux __TAILMUX_VERSION__ — attach to tmux sessions on Tailscale devices"
@@ -48,20 +48,49 @@ tailmux() {
     tailscale status --json 2>/dev/null
   }
 
-  _tailmux_magicdns_suffix_from_json() {
+  _tailmux_json_field() {
     local json="${1:-}"
+    local path="${2:?missing json path}"
+    local default="${3:-}"
+    local value=""
+
     if [[ -z "$json" ]]; then
+      [[ -n "$default" ]] && printf '%s\n' "$default"
       return 1
     fi
+
     if _tailmux_has_cmd jq; then
-      printf '%s\n' "$json" | jq -r '.MagicDNSSuffix // empty' 2>/dev/null
-      return 0
+      value="$(printf '%s\n' "$json" | jq -r --arg path "$path" 'getpath($path | split(".")) // empty' 2>/dev/null || true)"
+    elif _tailmux_has_cmd python3; then
+      value="$(printf '%s\n' "$json" | python3 -c 'import json,sys; value=json.load(sys.stdin); \
+for key in sys.argv[1].split("."): \
+    value = value.get(key, "") if isinstance(value, dict) else ""; \
+    if value in (None, ""): \
+        value = ""; \
+        break; \
+print(str(value).lower() if isinstance(value, bool) else ("" if value is None else value))' "$path" 2>/dev/null || true)"
+    else
+      case "$path" in
+        MagicDNSSuffix|BackendState)
+          value="$(printf '%s\n' "$json" | sed -n "s/.*\"$path\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -n1)"
+          ;;
+        CorpDNS)
+          value="$(printf '%s\n' "$json" | sed -n 's/.*"CorpDNS"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p' | head -n1)"
+          ;;
+      esac
     fi
-    if _tailmux_has_cmd python3; then
-      printf '%s\n' "$json" | python3 -c 'import json,sys; print((json.load(sys.stdin).get("MagicDNSSuffix") or ""))' 2>/dev/null
-      return 0
+
+    if [[ -z "$value" && -n "$default" ]]; then
+      value="$default"
     fi
-    printf '%s\n' "$json" | sed -n 's/.*"MagicDNSSuffix"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1
+
+    printf '%s\n' "$value"
+    [[ -n "$value" ]]
+  }
+
+  _tailmux_magicdns_suffix_from_json() {
+    local json="${1:-}"
+    _tailmux_json_field "$json" "MagicDNSSuffix"
   }
 
   _tailmux_lookup_ip_in_status_json() {
@@ -268,6 +297,7 @@ PY
   _tailmux_doctor() {
     local host="${1:-}"
     local status_json=""
+    local prefs_json=""
     local backend_state="unknown"
     local magic_suffix=""
     local corpdns="unknown"
@@ -291,21 +321,14 @@ PY
 
     status_json="$(_tailmux_status_json || true)"
     if [[ -n "$status_json" ]]; then
-      if _tailmux_has_cmd jq; then
-        backend_state="$(printf '%s\n' "$status_json" | jq -r '.BackendState // "unknown"' 2>/dev/null)"
-      elif _tailmux_has_cmd python3; then
-        backend_state="$(printf '%s\n' "$status_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("BackendState","unknown"))' 2>/dev/null)"
-      fi
+      backend_state="$(_tailmux_json_field "$status_json" "BackendState" "unknown" 2>/dev/null || true)"
       magic_suffix="$(_tailmux_magicdns_suffix_from_json "$status_json" 2>/dev/null || true)"
       magic_suffix="${magic_suffix%.}"
     fi
 
     if tailscale debug prefs >/dev/null 2>&1; then
-      if _tailmux_has_cmd jq; then
-        corpdns="$(tailscale debug prefs 2>/dev/null | jq -r '.CorpDNS // "unknown"' 2>/dev/null)"
-      elif _tailmux_has_cmd python3; then
-        corpdns="$(tailscale debug prefs 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("CorpDNS","unknown"))' 2>/dev/null)"
-      fi
+      prefs_json="$(tailscale debug prefs 2>/dev/null || true)"
+      corpdns="$(_tailmux_json_field "$prefs_json" "CorpDNS" "unknown" 2>/dev/null || true)"
     fi
 
     echo "  tailscale backend: $backend_state"
@@ -376,7 +399,6 @@ PY
   ssh -t -- "$target" "PATH=\"/opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:$PATH\"; if command -v tmux >/dev/null 2>&1; then tmux attach || tmux new; else echo \"tmux not found on remote\" >&2; exit 127; fi"
 }
 EOF
-)"
 TAILMUX_FUNC="${TAILMUX_FUNC//__TAILMUX_VERSION__/$TAILMUX_VERSION}"
 TAILMUX_BLOCK_BEGIN="# >>> tailmux managed block (tailmux) >>>"
 TAILMUX_BLOCK_END="# <<< tailmux managed block (tailmux) <<<"

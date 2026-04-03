@@ -7,17 +7,10 @@ test_tailmux_alias_precedence_over_tailnet_json() {
   local ssh_calls
   local out
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   hosts_file="$tmp/home/hosts"
   ssh_calls="$tmp/home/ssh.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
-
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux >/dev/null
 
   cat > "$hosts_file" <<'HOSTS'
 home 100.64.0.99
@@ -36,11 +29,8 @@ test_tailmux_status_json_matches_short_and_fqdn() {
   local out_short
   local out_fqdn
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   ssh_calls="$tmp/home/ssh.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
 
   cat > "$fake_bin/tailscale" <<'BIN'
 #!/usr/bin/env bash
@@ -68,10 +58,7 @@ exit 0
 BIN
   chmod +x "$fake_bin/tailscale"
 
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" USER=tailuser TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux USER=tailuser >/dev/null
 
   out_short="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" SSH_CALLS_FILE="$ssh_calls" bash -c 'source "$HOME/.profile"; tailmux laptop' 2>&1)"
   [[ "$out_short" == *"tailnet-json"* ]] || fail "expected tailnet-json mode for short hostname"
@@ -89,11 +76,8 @@ test_tailmux_dns_fallback_when_json_misses() {
   local ssh_calls
   local out
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   ssh_calls="$tmp/home/ssh.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
 
   cat > "$fake_bin/tailscale" <<'BIN'
 #!/usr/bin/env bash
@@ -119,10 +103,7 @@ exit 0
 BIN
   chmod +x "$fake_bin/tailscale"
 
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" USER=tailuser TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux USER=tailuser >/dev/null
 
   out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" SSH_CALLS_FILE="$ssh_calls" bash -c 'source "$HOME/.profile"; tailmux office' 2>&1)"
   [[ "$out" == *"tailnet-dns"* ]] || fail "expected tailnet-dns mode when json misses"
@@ -137,11 +118,8 @@ test_tailmux_lan_fallback_requires_flag() {
   local out_default
   local out_lan
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   ssh_calls="$tmp/home/ssh.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
 
   cat > "$fake_bin/getent" <<'BIN'
 #!/usr/bin/env bash
@@ -161,10 +139,7 @@ exit 1
 BIN
   chmod +x "$fake_bin/getent" "$fake_bin/dscacheutil" "$fake_bin/nslookup"
 
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux >/dev/null
 
   out_default="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" SSH_CALLS_FILE="$ssh_calls" bash -c 'source "$HOME/.profile"; tailmux box' 2>&1)"
   [[ "$out_default" == *"passthrough"* ]] || fail "expected passthrough when LAN fallback disabled"
@@ -182,10 +157,7 @@ test_tailmux_doctor_recommendation_on_passthrough() {
   local fake_bin
   local out
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
 
   cat > "$fake_bin/getent" <<'BIN'
 #!/usr/bin/env bash
@@ -201,12 +173,12 @@ exit 1
 BIN
   chmod +x "$fake_bin/getent" "$fake_bin/dscacheutil" "$fake_bin/nslookup"
 
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux >/dev/null
 
   out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" bash -c 'source "$HOME/.profile"; tailmux doctor ghost-host' 2>&1)"
+  [[ "$out" == *"tailscale backend: Running"* ]] || fail "expected backend state in doctor output"
+  [[ "$out" == *"tailscale dns accepted (CorpDNS): true"* ]] || fail "expected CorpDNS state in doctor output"
+  [[ "$out" == *"magicdns suffix: example.ts.net"* ]] || fail "expected magicdns suffix in doctor output"
   [[ "$out" == *"recommendation:"* ]] || fail "expected recommendation block on passthrough"
   [[ "$out" == *"tailscale dns status --all"* ]] || fail "expected tailscale dns status hint"
   pass "tailmux doctor recommendation on passthrough"

@@ -1,5 +1,52 @@
 #!/usr/bin/env bash
 
+create_fake_env() {
+  local tmp
+  local fake_bin
+
+  tmp="$(mktemp -d)"
+  fake_bin="$tmp/bin"
+  mkdir -p "$fake_bin" "$tmp/home"
+  make_fake_bin "$fake_bin"
+  printf '%s\t%s\n' "$tmp" "$fake_bin"
+}
+
+run_setup_with_input() {
+  if [[ $# -lt 5 ]]; then
+    echo "run_setup_with_input: expected at least 5 arguments" >&2
+    return 2
+  fi
+
+  local command="$1"
+  local input="$2"
+  local home_dir="$3"
+  local fake_bin="$4"
+  local os_name="$5"
+
+  shift 5
+  printf '%s' "$input" | env \
+    HOME="$home_dir" \
+    SHELL=/bin/bash \
+    PATH="$fake_bin:$PATH" \
+    TAILMUX_OS_OVERRIDE="$os_name" \
+    TAILMUX_USE_LOCAL_MODULES=1 \
+    "$@" \
+    bash "$SETUP_SCRIPT" "$command"
+}
+
+create_fake_macos_env() {
+  local tmp
+  local fake_bin
+  local brew_prefix
+
+  tmp="$(mktemp -d)"
+  fake_bin="$tmp/bin"
+  brew_prefix="$tmp/homebrew"
+  mkdir -p "$fake_bin" "$tmp/home"
+  make_fake_macos_bin "$fake_bin" "$brew_prefix"
+  printf '%s\t%s\t%s\n' "$tmp" "$fake_bin" "$brew_prefix"
+}
+
 make_fake_bin() {
   local bin_dir="${1:?missing bin dir}"
 

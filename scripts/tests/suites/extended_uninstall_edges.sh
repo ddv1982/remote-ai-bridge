@@ -5,23 +5,14 @@ test_uninstall_malformed_tailmux_block_warns_and_preserves_file() {
   local fake_bin
   local out
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
 
   cat > "$tmp/home/.profile" <<'RC'
 # >>> tailmux managed block (tailmux) >>>
 # malformed block without end marker
 RC
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" uninstall <<'INP' 2>&1
-y
-n
-n
-n
-INP
-)"
+  out="$(run_setup_with_input uninstall $'y\nn\nn\n' "$tmp/home" "$fake_bin" Linux 2>&1)"
 
   [[ "$out" == *"Tailmux managed block markers are malformed"* ]] || fail "expected malformed marker warning during uninstall"
   assert_count "$tmp/home/.profile" '^# >>> tailmux managed block \(tailmux\) >>>$' 1
@@ -34,11 +25,8 @@ test_uninstall_taildrive_prompts_davfs2_removal_on_linux() {
   local fake_bin
   local apt_calls
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   apt_calls="$tmp/home/apt.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
 
   cat > "$fake_bin/mount.davfs" <<'BIN'
 #!/usr/bin/env bash
@@ -53,19 +41,9 @@ exit 0
 BIN
   chmod +x "$fake_bin/mount.davfs" "$fake_bin/apt-get"
 
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-y
-n
-INP
+  run_setup_with_input install $'y\ny\nn\n' "$tmp/home" "$fake_bin" Linux >/dev/null
 
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" APT_CALLS_FILE="$apt_calls" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" uninstall <<'INP' >/dev/null
-n
-y
-y
-n
-n
-INP
+  run_setup_with_input uninstall $'n\ny\ny\nn\nn\n' "$tmp/home" "$fake_bin" Linux APT_CALLS_FILE="$apt_calls" >/dev/null
 
   assert_contains "$apt_calls" '^remove -y davfs2$'
   pass "uninstall taildrive prompts davfs2 removal"

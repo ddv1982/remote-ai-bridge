@@ -45,23 +45,13 @@ test_install_idempotent() {
   local tmp
   local fake_bin
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux)"
   [[ "$out" == *"Setup complete!"* ]] || fail "expected setup completion"
   assert_contains "$tmp/home/.profile" '^# >>> tailmux managed block \(tailmux\) >>>$'
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-n
-INP
-)"
+  out="$(run_setup_with_input install $'n\n' "$tmp/home" "$fake_bin" Linux)"
   [[ "$out" == *"Core setup is already installed!"* ]] || fail "expected idempotent core setup message"
   [[ "$out" == *"Reconciling installed Tailscale with dependency policy"* ]] || fail "expected policy reconciliation during idempotent run"
   pass "install idempotence"
@@ -71,10 +61,7 @@ test_stale_tailmux_refresh() {
   local tmp
   local fake_bin
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
 
   cat > "$tmp/home/.profile" <<'RC'
 # >>> tailmux managed block (tailmux) >>>
@@ -82,10 +69,7 @@ tailmux() { echo hi; }
 # <<< tailmux managed block (tailmux) <<<
 RC
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" USER=tailuser TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-n
-INP
-)"
+  out="$(run_setup_with_input install $'n\n' "$tmp/home" "$fake_bin" Linux USER=tailuser)"
 
   [[ "$out" == *"Refreshing incomplete tailmux function managed block"* ]] || fail "expected tailmux managed block refresh"
   assert_contains "$tmp/home/.profile" '_tailmux_resolve_target\(\)'
@@ -93,13 +77,38 @@ INP
   pass "stale tailmux refresh"
 }
 
+test_marker_complete_tailmux_block_refreshes() {
+  local tmp
+  local fake_bin
+  local out
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
+
+  cat > "$tmp/home/.profile" <<'RC'
+# >>> tailmux managed block (tailmux) >>>
+tailmux() {
+  _tailmux_usage() {
+    echo "tailmux 0.0.0"
+    echo "--version"
+  }
+  _tailmux_resolve_target() { echo "old-target"; }
+  _tailmux_doctor() { echo "old-doctor"; }
+  echo "stale body"
+}
+# <<< tailmux managed block (tailmux) <<<
+RC
+
+  out="$(run_setup_with_input install $'n\n' "$tmp/home" "$fake_bin" Linux)"
+
+  [[ "$out" == *"Refreshing incomplete tailmux function managed block"* ]] || fail "expected exact-match tailmux refresh"
+  assert_not_contains "$tmp/home/.profile" 'stale body'
+  assert_contains "$tmp/home/.profile" '_tailmux_magicdns_suffix_from_json\(\)'
+  pass "marker-complete tailmux block refresh"
+}
+
 test_stale_taildrive_refresh() {
   local tmp
   local fake_bin
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
 
   cat > "$tmp/home/.profile" <<'RC'
 # >>> tailmux managed block (tailmux) >>>
@@ -112,13 +121,12 @@ tailshare() { echo share; }
 # <<< tailmux managed block (taildrive) <<<
 RC
 
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-INP
+  run_setup_with_input install $'y\n' "$tmp/home" "$fake_bin" Linux >/dev/null
 
   assert_contains "$tmp/home/.profile" '^tailmount\(\)'
   assert_contains "$tmp/home/.profile" '^tailumount\(\)'
   assert_contains "$tmp/home/.profile" '^tailmount-ls\(\)'
+  assert_count "$tmp/home/.profile" '^_taildrive_get_os_name\(\)' 1
   pass "stale taildrive refresh"
 }
 
@@ -126,10 +134,7 @@ test_taildrive_legacy_get_os_name_refresh() {
   local tmp
   local fake_bin
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
 
   cat > "$tmp/home/.profile" <<'RC'
 # >>> tailmux managed block (tailmux) >>>
@@ -147,7 +152,7 @@ tailmount-ls() { :; }
 # <<< tailmux managed block (taildrive) <<<
 RC
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" USER=tailuser TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install)"
+  out="$(run_setup_with_input install '' "$tmp/home" "$fake_bin" Linux USER=tailuser)"
 
   [[ "$out" == *"Refreshing incomplete taildrive functions managed block"* ]] || fail "expected taildrive managed block refresh"
   assert_contains "$tmp/home/.profile" '_taildrive_get_os_name\(\)'
@@ -158,23 +163,10 @@ RC
 test_uninstall_removes_blocks() {
   local tmp
   local fake_bin
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
 
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-y
-n
-INP
-
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" uninstall <<'INP' >/dev/null
-y
-y
-n
-n
-INP
+  run_setup_with_input install $'y\ny\nn\n' "$tmp/home" "$fake_bin" Linux >/dev/null
+  run_setup_with_input uninstall $'y\ny\nn\nn\n' "$tmp/home" "$fake_bin" Linux >/dev/null
 
   assert_not_contains "$tmp/home/.profile" 'tailmux managed block \(tailmux\)'
   assert_not_contains "$tmp/home/.profile" 'tailmux managed block \(taildrive\)'
@@ -187,26 +179,16 @@ test_linux_operator_configured() {
   local calls_file
   local operator_file
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   calls_file="$tmp/home/tailscale.calls"
   operator_file="$tmp/home/tailscale.operator"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" USER=tailuser TAILSCALE_CALLS_FILE="$calls_file" TAILSCALE_FAKE_OPERATOR_FILE="$operator_file" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux USER=tailuser TAILSCALE_CALLS_FILE="$calls_file" TAILSCALE_FAKE_OPERATOR_FILE="$operator_file")"
 
   [[ "$out" == *"Configured Tailscale operator user 'tailuser'"* ]] || fail "expected tailscale operator configuration message"
   assert_occurrences "$calls_file" '^set --operator=tailuser$' 1
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" USER=tailuser TAILSCALE_CALLS_FILE="$calls_file" TAILSCALE_FAKE_OPERATOR_FILE="$operator_file" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-n
-INP
-)"
+  out="$(run_setup_with_input install $'n\n' "$tmp/home" "$fake_bin" Linux USER=tailuser TAILSCALE_CALLS_FILE="$calls_file" TAILSCALE_FAKE_OPERATOR_FILE="$operator_file")"
   [[ "$out" == *"Configured Tailscale operator user 'tailuser'"* ]] || fail "expected tailscale operator configuration message on rerun"
   assert_occurrences "$calls_file" '^set --operator=tailuser$' 2
   pass "linux tailscale operator setup"
@@ -217,11 +199,8 @@ test_linux_unauthenticated_skips_operator() {
   local fake_bin
   local calls_file
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   calls_file="$tmp/home/tailscale.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
 
   # Override tailscale to simulate NeedsLogin state
   cat > "$fake_bin/tailscale" <<'BIN'
@@ -243,11 +222,7 @@ exit 0
 BIN
   chmod +x "$fake_bin/tailscale"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" USER=tailuser TAILSCALE_CALLS_FILE="$calls_file" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux USER=tailuser TAILSCALE_CALLS_FILE="$calls_file")"
 
   [[ "$out" == *"Tailscale needs authentication first"* ]] || fail "expected unauthenticated warning"
   [[ "$out" == *"sudo tailscale up --ssh"* ]] || fail "expected sudo tailscale up --ssh hint"
@@ -266,19 +241,12 @@ test_linux_starts_tailscaled_when_down() {
   local calls_file
   local status_fail_file
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   calls_file="$tmp/home/systemctl.calls"
   status_fail_file="$tmp/home/tailscale.down"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
   : > "$status_fail_file"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" USER=tailuser SYSTEMCTL_CALLS_FILE="$calls_file" SYSTEMCTL_FIX_STATUS_FILE="$status_fail_file" TAILSCALE_STATUS_FAIL_FILE="$status_fail_file" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux USER=tailuser SYSTEMCTL_CALLS_FILE="$calls_file" SYSTEMCTL_FIX_STATUS_FILE="$status_fail_file" TAILSCALE_STATUS_FAIL_FILE="$status_fail_file")"
 
   [[ "$out" == *"Starting tailscaled service"* ]] || fail "expected tailscaled service start step"
   [[ "$out" == *"tailscaled service is running"* ]] || fail "expected tailscaled running confirmation"
@@ -291,17 +259,10 @@ test_tailscale_ssh_enabled() {
   local fake_bin
   local calls_file
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   calls_file="$tmp/home/tailscale.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" USER=tailuser TAILSCALE_CALLS_FILE="$calls_file" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux USER=tailuser TAILSCALE_CALLS_FILE="$calls_file")"
 
   [[ "$out" == *"Enabling Tailscale SSH on this device"* ]] || fail "expected Tailscale SSH enable step (Linux)"
   [[ "$out" == *"Tailscale SSH enabled"* ]] || fail "expected Tailscale SSH enabled message (Linux)"
@@ -315,18 +276,10 @@ test_macos_tailscale_ssh_enabled() {
   local brew_prefix
   local calls_file
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  brew_prefix="$tmp/homebrew"
+  IFS=$'\t' read -r tmp fake_bin brew_prefix < <(create_fake_macos_env)
   calls_file="$tmp/home/tailscale.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_macos_bin "$fake_bin" "$brew_prefix"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" USER=tailuser TAILSCALE_CALLS_FILE="$calls_file" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$brew_prefix" USER=tailuser TAILSCALE_CALLS_FILE="$calls_file")"
 
   [[ "$out" == *"Enabling Tailscale SSH on this device"* ]] || fail "expected Tailscale SSH enable step (macOS)"
   [[ "$out" == *"Tailscale SSH enabled"* ]] || fail "expected Tailscale SSH enabled message (macOS)"
@@ -341,21 +294,14 @@ test_linux_tailscale_policy_propagation() {
   local curl_calls_file
   local out
   local test_path
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   env_file="$tmp/home/tailscale-installer.env"
   curl_calls_file="$tmp/home/curl.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
   make_fake_tailscale_installer_capture_bin "$fake_bin"
   rm -f "$fake_bin/tailscale"
   test_path="$fake_bin:/usr/bin:/bin"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$test_path" CURL_CALLS_FILE="$curl_calls_file" TAILSCALE_INSTALL_ENV_FILE="$env_file" TAILMUX_TAILSCALE_TRACK=unstable TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux PATH="$test_path" CURL_CALLS_FILE="$curl_calls_file" TAILSCALE_INSTALL_ENV_FILE="$env_file" TAILMUX_TAILSCALE_TRACK=unstable)"
 
   [[ "$out" == *"Using Tailscale track 'unstable' (latest available)"* ]] || fail "expected track policy log line"
   assert_contains "$env_file" '^TRACK=unstable$'
@@ -369,20 +315,13 @@ test_linux_tailscale_policy_default_latest() {
   local env_file
   local out
   local test_path
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   env_file="$tmp/home/tailscale-installer.env"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
   make_fake_tailscale_installer_capture_bin "$fake_bin"
   rm -f "$fake_bin/tailscale"
   test_path="$fake_bin:/usr/bin:/bin"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$test_path" TAILSCALE_INSTALL_ENV_FILE="$env_file" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux PATH="$test_path" TAILSCALE_INSTALL_ENV_FILE="$env_file")"
 
   [[ "$out" == *"Using Tailscale track 'stable' (latest available)"* ]] || fail "expected latest policy log line"
   assert_contains "$env_file" '^TRACK=stable$'
@@ -395,19 +334,12 @@ test_linux_tailscale_policy_reconciles_when_installed() {
   local env_file
   local out
   local test_path
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   env_file="$tmp/home/tailscale-installer.env"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
   make_fake_tailscale_installer_capture_bin "$fake_bin"
   test_path="$fake_bin:/usr/bin:/bin"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$test_path" TAILSCALE_INSTALL_ENV_FILE="$env_file" TAILMUX_TAILSCALE_TRACK=unstable TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux PATH="$test_path" TAILSCALE_INSTALL_ENV_FILE="$env_file" TAILMUX_TAILSCALE_TRACK=unstable)"
 
   [[ "$out" == *"Reconciling installed Tailscale with dependency policy"* ]] || fail "expected reconcile message for preinstalled tailscale"
   [[ "$out" == *"Tailscale policy reconciliation complete"* ]] || fail "expected reconciliation completion message"
@@ -419,10 +351,7 @@ test_linux_preinstalled_tailscale_reconcile_failure_non_fatal() {
   local tmp
   local fake_bin
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
 
   cat > "$fake_bin/curl" <<'BIN'
 #!/usr/bin/env bash
@@ -433,11 +362,7 @@ exit 0
 BIN
   chmod +x "$fake_bin/curl"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux)"
 
   [[ "$out" == *"Could not reconcile installed Tailscale with dependency policy. Keeping existing install."* ]] || fail "expected non-fatal reconcile failure warning"
   [[ "$out" == *"Setup complete!"* ]] || fail "expected setup completion after reconcile failure with preinstalled tailscale"
@@ -450,10 +375,7 @@ test_malformed_tailmux_block_not_modified() {
   local fake_bin
   local out
   local status
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
 
   cat > "$tmp/home/.profile" <<'RC'
 # >>> tailmux managed block (tailmux) >>>
@@ -461,11 +383,7 @@ test_malformed_tailmux_block_not_modified() {
 RC
 
   set +e
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' 2>&1
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux 2>&1)"
   status=$?
   set -e
 
@@ -483,17 +401,9 @@ test_macos_path_selection_mocked() {
   local fake_bin
   local brew_prefix
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  brew_prefix="$tmp/homebrew"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_macos_bin "$fake_bin" "$brew_prefix"
+  IFS=$'\t' read -r tmp fake_bin brew_prefix < <(create_fake_macos_env)
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-y
-n
-INP
-)"
+  out="$(run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$brew_prefix")"
 
   [[ "$out" == *"Tailscale already installed (Homebrew formula)"* ]] || fail "expected mocked macOS formula path"
   [[ "$out" == *"Setup complete!"* ]] || fail "expected mocked macOS setup completion"
@@ -507,23 +417,12 @@ test_macos_formula_upgrade_attempted() {
   local brew_prefix
   local brew_calls_file
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  brew_prefix="$tmp/homebrew"
+  IFS=$'\t' read -r tmp fake_bin brew_prefix < <(create_fake_macos_env)
   brew_calls_file="$tmp/home/brew.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_macos_bin "$fake_bin" "$brew_prefix"
-
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" >/dev/null
   : > "$brew_calls_file"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" BREW_TAILSCALE_OUTDATED=1 TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-n
-INP
-)"
+  out="$(run_setup_with_input install $'n\n' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" BREW_TAILSCALE_OUTDATED=1)"
 
   [[ "$out" == *"Core setup is already installed!"* ]] || fail "expected idempotent core setup message on macOS rerun"
   [[ "$out" == *"Upgrading Homebrew Tailscale formula"* ]] || fail "expected upgrade step for existing macOS formula install"
@@ -537,23 +436,12 @@ test_macos_formula_up_to_date_skips_upgrade() {
   local brew_prefix
   local brew_calls_file
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  brew_prefix="$tmp/homebrew"
+  IFS=$'\t' read -r tmp fake_bin brew_prefix < <(create_fake_macos_env)
   brew_calls_file="$tmp/home/brew.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_macos_bin "$fake_bin" "$brew_prefix"
-
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" >/dev/null
   : > "$brew_calls_file"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP'
-n
-INP
-)"
+  out="$(run_setup_with_input install $'n\n' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file")"
 
   [[ "$out" == *"Homebrew Tailscale formula is already up to date"* ]] || fail "expected up-to-date message on macOS rerun"
   if grep -q '^upgrade tailscale$' "$brew_calls_file" 2>/dev/null; then
@@ -608,17 +496,10 @@ test_tailmux_rejects_option_target() {
   local out
   local status
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   hosts_file="$tmp/home/hosts"
   ssh_calls="$tmp/home/ssh.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
-
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux >/dev/null
 
   cat > "$hosts_file" <<'HOSTS'
 evil -oProxyCommand=whoami
@@ -643,25 +524,11 @@ test_uninstall_tailscale_state_requires_typed_confirmation() {
   local rm_calls
   local out
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   rm_calls="$tmp/home/sudo-rm.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux >/dev/null
 
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
-
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" SUDO_RM_CALLS_FILE="$rm_calls" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" uninstall <<'INP'
-n
-n
-n
-y
-WRONG_TOKEN
-INP
-)"
+  out="$(run_setup_with_input uninstall $'n\nn\nn\ny\nWRONG_TOKEN\n' "$tmp/home" "$fake_bin" Linux SUDO_RM_CALLS_FILE="$rm_calls")"
 
   [[ "$out" == *"Skipped deleting Tailscale state directories."* ]] || fail "expected skipped state deletion message"
   if [[ -f "$rm_calls" ]] && grep -q '/var/lib/tailscale\|/etc/tailscale' "$rm_calls"; then
@@ -676,25 +543,11 @@ test_uninstall_tailscale_state_deletes_with_typed_confirmation() {
   local rm_calls
   local out
 
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   rm_calls="$tmp/home/sudo-rm.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux >/dev/null
 
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
-
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" SUDO_RM_CALLS_FILE="$rm_calls" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" uninstall <<'INP'
-n
-n
-n
-y
-DELETE_TAILSCALE_STATE
-INP
-)"
+  out="$(run_setup_with_input uninstall $'n\nn\nn\ny\nDELETE_TAILSCALE_STATE\n' "$tmp/home" "$fake_bin" Linux SUDO_RM_CALLS_FILE="$rm_calls")"
 
   [[ "$out" == *"Removing Tailscale state and configuration..."* ]] || fail "expected state deletion step when token matches"
   assert_contains "$rm_calls" '/var/lib/tailscale'
@@ -745,16 +598,9 @@ test_tailmux_help_flag() {
   local fake_bin
   local ssh_calls
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   ssh_calls="$tmp/home/ssh.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
-
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux >/dev/null
 
   out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" SSH_CALLS_FILE="$ssh_calls" bash -lc 'source "$HOME/.profile"; tailmux --help')"
   [[ "$out" == *"Usage:"* ]] || fail "expected Usage in tailmux --help output"
@@ -774,15 +620,9 @@ test_tailmux_version_flag() {
   local tmp
   local fake_bin
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
 
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux >/dev/null
 
   out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" bash -lc 'source "$HOME/.profile"; tailmux --version')"
   [[ "$out" =~ [0-9]+\.[0-9]+\.[0-9]+ ]] || fail "expected semver in tailmux --version output"
@@ -857,14 +697,11 @@ test_update_no_outdated() {
   local fake_bin
   local brew_prefix
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  brew_prefix="$tmp/homebrew"
-  mkdir -p "$fake_bin" "$tmp/home" "$brew_prefix/bin" "$brew_prefix/Cellar"
-  make_fake_macos_bin "$fake_bin" "$brew_prefix"
+  IFS=$'\t' read -r tmp fake_bin brew_prefix < <(create_fake_macos_env)
+  mkdir -p "$brew_prefix/bin" "$brew_prefix/Cellar"
   _make_update_brew "$fake_bin"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" update 2>&1)"
+  out="$(run_setup_with_input update '' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$brew_prefix" 2>&1)"
   [[ "$out" == *"up to date"* ]] || fail "expected up-to-date message when nothing outdated"
   pass "update with no outdated packages"
 }
@@ -875,18 +712,12 @@ test_update_outdated_upgraded() {
   local brew_prefix
   local brew_calls_file
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  brew_prefix="$tmp/homebrew"
+  IFS=$'\t' read -r tmp fake_bin brew_prefix < <(create_fake_macos_env)
   brew_calls_file="$tmp/home/brew.calls"
-  mkdir -p "$fake_bin" "$tmp/home" "$brew_prefix/bin" "$brew_prefix/Cellar"
-  make_fake_macos_bin "$fake_bin" "$brew_prefix"
+  mkdir -p "$brew_prefix/bin" "$brew_prefix/Cellar"
   _make_update_brew "$fake_bin"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" BREW_TAILSCALE_OUTDATED=1 TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" update <<'INP'
-y
-INP
-)"
+  out="$(run_setup_with_input update $'y\n' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" BREW_TAILSCALE_OUTDATED=1)"
   [[ "$out" == *"Upgrading"* ]] || fail "expected upgrade step"
   assert_contains "$brew_calls_file" '^upgrade tailscale$'
   pass "update outdated package upgraded"
@@ -898,18 +729,12 @@ test_update_declined() {
   local brew_prefix
   local brew_calls_file
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
-  brew_prefix="$tmp/homebrew"
+  IFS=$'\t' read -r tmp fake_bin brew_prefix < <(create_fake_macos_env)
   brew_calls_file="$tmp/home/brew.calls"
-  mkdir -p "$fake_bin" "$tmp/home" "$brew_prefix/bin" "$brew_prefix/Cellar"
-  make_fake_macos_bin "$fake_bin" "$brew_prefix"
+  mkdir -p "$brew_prefix/bin" "$brew_prefix/Cellar"
   _make_update_brew "$fake_bin"
 
-  out="$(HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" BREW_TAILSCALE_OUTDATED=1 TAILMUX_OS_OVERRIDE=Darwin TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" update <<'INP'
-n
-INP
-)"
+  out="$(run_setup_with_input update $'n\n' "$tmp/home" "$fake_bin" Darwin BREW_PREFIX="$brew_prefix" BREW_CALLS_FILE="$brew_calls_file" BREW_TAILSCALE_OUTDATED=1)"
   [[ "$out" == *"cancelled"* ]] || fail "expected cancelled message when user declines"
   if grep -q '^upgrade tailscale$' "$brew_calls_file" 2>/dev/null; then
     fail "did not expect brew upgrade when user declined"
@@ -922,16 +747,9 @@ test_tailmux_resolver_ip_passthrough() {
   local fake_bin
   local ssh_calls
   local out
-  tmp="$(mktemp -d)"
-  fake_bin="$tmp/bin"
+  IFS=$'\t' read -r tmp fake_bin < <(create_fake_env)
   ssh_calls="$tmp/home/ssh.calls"
-  mkdir -p "$fake_bin" "$tmp/home"
-  make_fake_bin "$fake_bin"
-
-  HOME="$tmp/home" SHELL=/bin/bash PATH="$fake_bin:$PATH" TAILMUX_OS_OVERRIDE=Linux TAILMUX_USE_LOCAL_MODULES=1 bash "$SETUP_SCRIPT" install <<'INP' >/dev/null
-y
-n
-INP
+  run_setup_with_input install $'y\nn\n' "$tmp/home" "$fake_bin" Linux >/dev/null
 
   # Use bash -c (not -lc) to prevent /etc/profile from reordering PATH,
   # which would cause the real ssh to be found instead of the mock.

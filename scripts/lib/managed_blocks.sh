@@ -5,7 +5,8 @@ managed_block_prepare_install() {
   local entity_label="${1:?missing entity label}"
   local block_begin="${2:?missing block begin marker}"
   local block_end="${3:?missing block end marker}"
-  local installed_check_fn="${4:?missing installed check function}"
+  local up_to_date_check_fn="${4:?missing up-to-date check function}"
+  local installed_check_fn="${5:-$up_to_date_check_fn}"
   local state
 
   touch "$RC_FILE"
@@ -17,7 +18,7 @@ managed_block_prepare_install() {
   fi
 
   if [[ "$state" == "valid" ]]; then
-    if "$installed_check_fn"; then
+    if "$up_to_date_check_fn"; then
       print_success "$entity_label already in $RC_FILE"
       return 10
     fi

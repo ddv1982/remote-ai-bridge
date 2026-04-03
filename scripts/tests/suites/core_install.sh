@@ -129,6 +129,7 @@ run_core_install_suite() {
   test_loader_missing_module_fails
   test_install_idempotent
   test_stale_tailmux_refresh
+  test_marker_complete_tailmux_block_refreshes
   test_stale_taildrive_refresh
   test_taildrive_legacy_get_os_name_refresh
   test_linux_operator_configured

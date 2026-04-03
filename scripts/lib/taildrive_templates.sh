@@ -33,35 +33,52 @@ _taildrive_status_json() {
   _taildrive_require_cmd tailscale || return 1
   tailscale status --json 2>/dev/null
 }
+_taildrive_json_field() {
+  local json="${1:-}"
+  local path="${2:?missing json path}"
+  local value=""
+
+  if [[ -z "$json" ]]; then
+    return 1
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    value="$(printf '%s\n' "$json" | jq -r --arg path "$path" 'getpath($path | split(".")) // empty' 2>/dev/null || true)"
+  elif command -v python3 >/dev/null 2>&1; then
+    value="$(printf '%s\n' "$json" | python3 -c 'import json,sys; value=json.load(sys.stdin); \
+for key in sys.argv[1].split("."): \
+    value = value.get(key, "") if isinstance(value, dict) else ""; \
+    if value in (None, ""): \
+        value = ""; \
+        break; \
+print("" if value is None else value)' "$path" 2>/dev/null || true)"
+  else
+    case "$path" in
+      Self.HostName)
+        value="$(printf '%s\n' "$json" | sed -n 's/.*"HostName"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+        ;;
+      MagicDNSSuffix)
+        value="$(printf '%s\n' "$json" | sed -n 's/.*"MagicDNSSuffix"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+        ;;
+    esac
+  fi
+
+  printf '%s\n' "$value"
+  [[ -n "$value" ]]
+}
 _taildrive_self_hostname() {
   local json
   if ! json="$(_taildrive_status_json)"; then
     return 1
   fi
-  if command -v jq >/dev/null 2>&1; then
-    printf '%s\n' "$json" | jq -r '.Self.HostName // empty' 2>/dev/null
-    return $?
-  fi
-  if command -v python3 >/dev/null 2>&1; then
-    printf '%s\n' "$json" | python3 -c 'import json,sys; data=json.load(sys.stdin); print(((data.get("Self") or {}).get("HostName","")))' 2>/dev/null
-    return $?
-  fi
-  printf '%s\n' "$json" | sed -n 's/.*"HostName"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1
+  _taildrive_json_field "$json" "Self.HostName"
 }
 _taildrive_magicdns_suffix() {
   local json
   if ! json="$(_taildrive_status_json)"; then
     return 1
   fi
-  if command -v jq >/dev/null 2>&1; then
-    printf '%s\n' "$json" | jq -r '.MagicDNSSuffix // empty' 2>/dev/null
-    return $?
-  fi
-  if command -v python3 >/dev/null 2>&1; then
-    printf '%s\n' "$json" | python3 -c 'import json,sys; data=json.load(sys.stdin); print(data.get("MagicDNSSuffix",""))' 2>/dev/null
-    return $?
-  fi
-  printf '%s\n' "$json" | sed -n 's/.*"MagicDNSSuffix"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1
+  _taildrive_json_field "$json" "MagicDNSSuffix"
 }
 tailshare() {
   local name="${1:?Usage: tailshare <name> [path]}"
@@ -99,9 +116,6 @@ SHARE_EOF
 
 # Taildrive shell functions (mounting - macOS and Linux)
 read -r -d '' TAILDRIVE_MOUNT_FUNCS <<'MOUNT_EOF' || true
-_taildrive_get_os_name() {
-  uname -s
-}
 _taildrive_mount_darwin() {
   local url="${1:?missing mount url}"
   local mount_point="${2:?missing mount point}"

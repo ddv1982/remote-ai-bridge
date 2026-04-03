@@ -6,7 +6,8 @@ install_shell_function() {
     "tailmux function" \
     "$TAILMUX_BLOCK_BEGIN" \
     "$TAILMUX_BLOCK_END" \
-    "tailmux_function_up_to_date" || prepare_status=$?
+    "tailmux_function_up_to_date" \
+    "tailmux_function_installed" || prepare_status=$?
   if [[ "$prepare_status" == "10" ]]; then
     return 0
   fi
@@ -25,7 +26,8 @@ install_taildrive_functions() {
     "taildrive functions" \
     "$TAILDRIVE_BLOCK_BEGIN" \
     "$TAILDRIVE_BLOCK_END" \
-    "taildrive_functions_up_to_date" || prepare_status=$?
+    "taildrive_functions_up_to_date" \
+    "taildrive_functions_installed" || prepare_status=$?
   if [[ "$prepare_status" == "10" ]]; then
     return 0
   fi
@@ -43,18 +45,6 @@ install_taildrive_functions() {
   print_step "Adding taildrive functions to $RC_FILE"
   append_managed_block "$TAILDRIVE_BLOCK_BEGIN" "$TAILDRIVE_BLOCK_END" "$taildrive_content"
   print_success "taildrive functions added to $RC_FILE"
-}
-
-enable_macos_taildrive_filesharing_ui() {
-  local os_name="${1:?missing os name}"
-
-  if [[ "$os_name" != "Darwin" ]]; then
-    return 0
-  fi
-  # With the open-source Homebrew tailscale formula, taildrive is managed via CLI
-  # (tailscale drive share), not the GUI File Sharing settings. Skip this step.
-  # The GUI settings only apply to the App Store / Standalone GUI app variants.
-  return 0
 }
 
 print_reload_shell_hint() {
@@ -147,11 +137,8 @@ do_install() {
       if confirm "Install optional taildrive file sharing functions? [y/N]" "n"; then
         ensure_taildrive_mount_dependencies "$os_name"
         install_taildrive_functions
-        enable_macos_taildrive_filesharing_ui "$os_name"
         taildrive_installed_now=true
       fi
-    else
-      enable_macos_taildrive_filesharing_ui "$os_name"
     fi
     _hint_available_updates
     echo ""
@@ -194,11 +181,8 @@ do_install() {
     if confirm "Install taildrive file sharing functions? [y/N]" "n"; then
       ensure_taildrive_mount_dependencies "$os_name"
       install_taildrive_functions
-      enable_macos_taildrive_filesharing_ui "$os_name"
       taildrive_installed=true
     fi
-  else
-    enable_macos_taildrive_filesharing_ui "$os_name"
   fi
 
   echo ""

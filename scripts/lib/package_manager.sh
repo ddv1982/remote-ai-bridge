@@ -1,54 +1,36 @@
 # shellcheck shell=bash
 # Shared package manager primitives
 
-detect_package_manager() {
-  if command_exists brew; then
+_detect_package_manager() {
+  local include_brew="${1:-false}"
+  local pm
+
+  if [[ "$include_brew" == "true" ]] && command_exists brew; then
     echo "brew"
     return 0
   fi
-  if command_exists apt-get; then
-    echo "apt-get"
-    return 0
-  fi
-  if command_exists dnf; then
-    echo "dnf"
-    return 0
-  fi
-  if command_exists yum; then
-    echo "yum"
-    return 0
-  fi
-  if command_exists pacman; then
-    echo "pacman"
-    return 0
-  fi
+
+  for pm in apt-get dnf yum pacman; do
+    if command_exists "$pm"; then
+      echo "$pm"
+      return 0
+    fi
+  done
+
   echo "none"
+}
+
+detect_package_manager() {
+  _detect_package_manager true
 }
 
 detect_linux_package_manager() {
-  if command_exists apt-get; then
-    echo "apt-get"
-    return 0
-  fi
-  if command_exists dnf; then
-    echo "dnf"
-    return 0
-  fi
-  if command_exists yum; then
-    echo "yum"
-    return 0
-  fi
-  if command_exists pacman; then
-    echo "pacman"
-    return 0
-  fi
-  echo "none"
+  _detect_package_manager false
 }
 
-package_manager_install() {
-  local package="${1:?missing package name}"
-  local pm
-  pm="$(detect_package_manager)"
+_package_manager_install() {
+  local pm="${1:?missing package manager}"
+  local package="${2:?missing package name}"
 
   case "$pm" in
     brew)
@@ -72,11 +54,20 @@ package_manager_install() {
   esac
 }
 
-package_manager_uninstall() {
+package_manager_install() {
   local package="${1:?missing package name}"
-  local purge="${2:-false}"
-  local pm
-  pm="$(detect_package_manager)"
+  _package_manager_install "$(detect_package_manager)" "$package"
+}
+
+linux_package_manager_install() {
+  local package="${1:?missing package name}"
+  _package_manager_install "$(detect_linux_package_manager)" "$package"
+}
+
+_package_manager_uninstall() {
+  local pm="${1:?missing package manager}"
+  local package="${2:?missing package name}"
+  local purge="${3:-false}"
 
   case "$pm" in
     brew)
@@ -103,10 +94,21 @@ package_manager_uninstall() {
   esac
 }
 
-package_manager_install_hint() {
+package_manager_uninstall() {
   local package="${1:?missing package name}"
-  local pm
-  pm="$(detect_package_manager)"
+  local purge="${2:-false}"
+  _package_manager_uninstall "$(detect_package_manager)" "$package" "$purge"
+}
+
+linux_package_manager_uninstall() {
+  local package="${1:?missing package name}"
+  local purge="${2:-false}"
+  _package_manager_uninstall "$(detect_linux_package_manager)" "$package" "$purge"
+}
+
+_package_manager_install_hint() {
+  local pm="${1:?missing package manager}"
+  local package="${2:?missing package name}"
 
   case "$pm" in
     brew)
@@ -130,78 +132,12 @@ package_manager_install_hint() {
   esac
 }
 
-linux_package_manager_install() {
+package_manager_install_hint() {
   local package="${1:?missing package name}"
-  local pm
-  pm="$(detect_linux_package_manager)"
-
-  case "$pm" in
-    apt-get)
-      sudo apt-get update -y && sudo apt-get install -y "$package"
-      ;;
-    dnf)
-      sudo dnf install -y "$package"
-      ;;
-    yum)
-      sudo yum install -y "$package"
-      ;;
-    pacman)
-      sudo pacman -S --noconfirm "$package"
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-linux_package_manager_uninstall() {
-  local package="${1:?missing package name}"
-  local purge="${2:-false}"
-  local pm
-  pm="$(detect_linux_package_manager)"
-
-  case "$pm" in
-    apt-get)
-      sudo apt-get remove -y "$package"
-      if [[ "$purge" == "true" ]]; then
-        sudo apt-get purge -y "$package" 2>/dev/null || true
-      fi
-      ;;
-    dnf)
-      sudo dnf remove -y "$package"
-      ;;
-    yum)
-      sudo yum remove -y "$package"
-      ;;
-    pacman)
-      sudo pacman -R --noconfirm "$package"
-      ;;
-    *)
-      return 1
-      ;;
-  esac
+  _package_manager_install_hint "$(detect_package_manager)" "$package"
 }
 
 linux_package_manager_install_hint() {
   local package="${1:?missing package name}"
-  local pm
-  pm="$(detect_linux_package_manager)"
-
-  case "$pm" in
-    apt-get)
-      echo "Install manually with: sudo apt-get update -y && sudo apt-get install -y $package"
-      ;;
-    dnf)
-      echo "Install manually with: sudo dnf install -y $package"
-      ;;
-    yum)
-      echo "Install manually with: sudo yum install -y $package"
-      ;;
-    pacman)
-      echo "Install manually with: sudo pacman -S --noconfirm $package"
-      ;;
-    *)
-      echo "Install $package manually using your distribution's package manager."
-      ;;
-  esac
+  _package_manager_install_hint "$(detect_linux_package_manager)" "$package"
 }
